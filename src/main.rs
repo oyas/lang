@@ -49,7 +49,7 @@ fn read_tokens(stream: &mut BufRead) -> Vec<String> {
     return tokens;
 }
 
-fn parse_element(tokens: &[String], pos: &mut usize, limit: i32) -> Option<element::Element> {
+fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket: String) -> Option<element::Element> {
     if *pos >= tokens.len() {
         return None;
         //panic!("out of bounds");
@@ -59,8 +59,9 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32) -> Option<eleme
     let token = &tokens[*pos];
     *pos += 1;
     if token == "\n" {
-        return parse_element(tokens, pos, limit);
+        return parse_element(tokens, pos, limit, end_bracket);
     }
+    // parse
     let mut result: element::Element = match token.chars().nth(0) {
         Some(n) if n.is_ascii_digit() => {
             let value = token.parse::<i64>().ok().unwrap();
@@ -78,35 +79,76 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32) -> Option<eleme
                 childlen: Vec::new(),
             }
         }
+        Some('(') | Some(')') => {
+            let bra = token.parse::<char>().ok().unwrap();
+            element::Element{
+                value: element::Value::Brackets(bra.to_string()),
+                value_type: element::ValueType::Inference,
+                childlen: Vec::new(),
+            }
+        }
         _ => {
             return None;
         }
     };
 
-    // check limit
     if let element::Value::Operator(_, priority) = result.value {
+        // check priority of operator
         if priority < limit {
             *pos -= 1;
             return None;
         }
+    } else if let element::Value::Brackets(ref bra) = result.value {
+        // check end of bracket
+        if *bra == end_bracket {
+            return Some(result);
+        } else {
+            if let Some(eb) = element::get_end_bracket(bra) {
+                end_bracket = eb;
+            } else {
+                panic!("Invalid syntax '{}' {}", bra, end_bracket);
+            }
+        }
     }
 
-    // read next token
-    if let element::Value::Operator(..) = result.value {
-        return Some(result);
-    } else {
-        loop {
-            let nextw = parse_element(tokens, pos, limit);
-            if let Some(next) = nextw {
-                if let element::Value::Operator(..) = next.value {
-                    result = reorder_elelemnt(tokens, pos, result, next);
+    // read childlen elements
+    match result.value {
+        element::Value::Operator(..) => {
+            return Some(result);
+        }
+        element::Value::Brackets(..) => {
+            loop {
+                let nextw = parse_element(tokens, pos, 0, end_bracket.clone());
+                if let Some(next) = nextw {
+                    println!("bracket childlen = {:?}", next);
+                    if let element::Value::Brackets(ref bra) = next.value {
+                        println!("end_bracket = {}", end_bracket);
+                        if *bra == end_bracket {
+                            break;
+                        }
+                    }
+                    result.childlen.push(next);
                 } else {
-                    *pos -= 1;
                     break;
                 }
+            }
+        }
+        _ => {
+        }
+    }
+
+    // check if the next token is operator
+    loop {
+        let nextw = parse_element(tokens, pos, limit, end_bracket.clone());
+        if let Some(next) = nextw {
+            if let element::Value::Operator(..) = next.value {
+                result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone());
             } else {
+                *pos -= 1;
                 break;
             }
+        } else {
+            break;
         }
     }
 
@@ -114,14 +156,14 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32) -> Option<eleme
 }
 
 //fn reorder_elelemnt<'a>(tokens: &[String], pos: &mut usize, el: &'a mut element::Element, el_ope: &'a mut element::Element) -> &'a mut element::Element {
-fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element, mut el_ope: element::Element) -> element::Element {
+fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element, mut el_ope: element::Element, end_bracket: String) -> element::Element {
     if let element::Value::Operator(_, priority_ope) = el_ope.value {
         // finding left element
         if let element::Value::Operator(_, priority) = el.value {
             if priority_ope > priority {
                 // el_ope is child node
                 if let Some(el_right) = el.childlen.pop() {
-                    let res = reorder_elelemnt(tokens, pos, el_right, el_ope);
+                    let res = reorder_elelemnt(tokens, pos, el_right, el_ope, end_bracket);
                     el.childlen.push(res);
                     return el;
                 } else {
@@ -133,7 +175,7 @@ fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element
         // el_ope is parent node. el is left node
         el_ope.childlen.push(el);
         // read right token
-        let next = parse_element(tokens, pos, priority_ope);
+        let next = parse_element(tokens, pos, priority_ope, end_bracket);
         if let Some(next) = next {
             el_ope.childlen.push(next);
         } else {
@@ -182,6 +224,9 @@ fn eval(el: &element::Element) -> i64 {
                 panic!("Invalid syntax");
             }
         }
+        element::Value::Brackets(x) if x == "(" => {
+            eval(el.childlen.first().unwrap())
+        }
         _ => {
             panic!("Invalid syntax");
         }
@@ -216,7 +261,7 @@ fn main() {
     }
 
     let mut pos: usize = 0;
-    let el = parse_element(&tokens, &mut pos, 0);
+    let el = parse_element(&tokens, &mut pos, 0, String::new());
     println!("parse_element: {:#?}", el);
     if let Some(el) = el {
         let result = eval(&el);

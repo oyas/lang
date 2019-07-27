@@ -15,9 +15,10 @@ pub enum Value {
     Identifier(String),     // start with alphabetic char; variable or
     Integer(i64),           // 1234
     String(String),
-    Operator(String,i32),   // operator string, priority
+    Operator(String,i32),   // infix notation, whitch required left and right element (operator string, priority)
     Formula(String),
     Scope(Box<Value>),
+    Brackets(String),
 }
 
 lazy_static! {
@@ -33,6 +34,14 @@ lazy_static! {
 
 pub fn get_operator(ope: &String) -> Value {
     return OPERATORS[ope].clone()
+}
+
+pub fn get_end_bracket(bra: &str) -> Option<String> {
+    match bra {
+        "(" => Some(")".to_string()),
+        "{" => Some("}".to_string()),
+        _ => None,
+    }
 }
 
 #[derive(Debug)]

@@ -21,7 +21,7 @@ pub enum Value {
     Symbol(String),         // reserved words: let, if, for, func ...
     Formula(String),
     Scope(Box<Value>),
-    Brackets(String),
+    Bracket(String),        // "(", ")", "{", "}", ...
     EndLine(),              // "\n"
     FileScope(),            // the top level element
 }
@@ -58,7 +58,7 @@ pub fn get_element(token: &str) -> Option<Element> {
         }
         Some('(') | Some(')') => {
             Some(Element{
-                value: Value::Brackets(token.to_string()),
+                value: get_bracket(token),
                 value_type: ValueType::Inference,
                 childlen: Vec::new(),
             })
@@ -77,11 +77,16 @@ pub fn get_element(token: &str) -> Option<Element> {
 lazy_static! {
     pub static ref SYMBOLS: HashMap<String, Value> = {
         let mut m = HashMap::new();
+        // Operators
         m.insert("*".to_string(), Value::Operator("*".to_string(), 30));
         m.insert("/".to_string(), Value::Operator("/".to_string(), 30));
         m.insert("+".to_string(), Value::Operator("+".to_string(), 20));
         m.insert("-".to_string(), Value::Operator("-".to_string(), 20));
         m.insert("=".to_string(), Value::Operator("=".to_string(), 10));
+        // Brackets
+        m.insert("(".to_string(), Value::Bracket("(".to_string()));
+        m.insert(")".to_string(), Value::Bracket(")".to_string()));
+        // Keywords
         m.insert("let".to_string(), Value::Symbol("let".to_string()));
         m
     };
@@ -110,6 +115,15 @@ pub fn get_symbol(token: &str) -> Value {
         symbol
     } else {
         panic!("can't parse \"{}\" as symbol", token);
+    }
+}
+
+pub fn get_bracket(token: &str) -> Value {
+    let value = get_identifier(token);
+    if let Value::Bracket(..) = value {
+        value
+    } else {
+        panic!("can't parse \"{}\" as bracket", token);
     }
 }
 

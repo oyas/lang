@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Element {
     pub value: Value,
     pub value_type: ValueType,
@@ -18,6 +18,7 @@ pub enum Value {
     Integer(i64),           // 1234
     String(String),
     Operator(String,i32),   // infix notation, whitch required left and right element (operator string, priority)
+    Symbol(String),         // reserved words: let, if, for, func ...
     Formula(String),
     Scope(Box<Value>),
     Brackets(String),
@@ -41,7 +42,14 @@ pub fn get_element(token: &str) -> Option<Element> {
                 }
             }
         }
-        Some('+') | Some('-') | Some('*') | Some('/') => {
+        Some(a) if a.is_ascii_alphabetic() => {
+            Some(Element{
+                value: get_identifier(token),
+                value_type: ValueType::Inference,
+                childlen: Vec::new(),
+            })
+        }
+        Some('+') | Some('-') | Some('*') | Some('/') | Some('=') => {
             Some(Element{
                 value: get_operator(token),
                 value_type: ValueType::Inference,
@@ -67,18 +75,42 @@ pub fn get_element(token: &str) -> Option<Element> {
 }
 
 lazy_static! {
-    pub static ref OPERATORS: HashMap<String, Value> = {
+    pub static ref SYMBOLS: HashMap<String, Value> = {
         let mut m = HashMap::new();
-        m.insert("*".to_string(), Value::Operator("*".to_string(), 20));
-        m.insert("/".to_string(), Value::Operator("/".to_string(), 20));
-        m.insert("+".to_string(), Value::Operator("+".to_string(), 10));
-        m.insert("-".to_string(), Value::Operator("-".to_string(), 10));
+        m.insert("*".to_string(), Value::Operator("*".to_string(), 30));
+        m.insert("/".to_string(), Value::Operator("/".to_string(), 30));
+        m.insert("+".to_string(), Value::Operator("+".to_string(), 20));
+        m.insert("-".to_string(), Value::Operator("-".to_string(), 20));
+        m.insert("=".to_string(), Value::Operator("=".to_string(), 10));
+        m.insert("let".to_string(), Value::Symbol("let".to_string()));
         m
     };
 }
 
-pub fn get_operator(ope: &str) -> Value {
-    return OPERATORS[ope].clone()
+pub fn get_identifier(token: &str) -> Value {
+    if let Some(symbol) = SYMBOLS.get(token) {
+        symbol.clone()
+    } else {
+        Value::Identifier(token.to_string())
+    }
+}
+
+pub fn get_operator(token: &str) -> Value {
+    let ope_value = get_identifier(token);
+    if let Value::Operator(..) = ope_value {
+        ope_value
+    } else {
+        panic!("can't parse \"{}\" as operator", token);
+    }
+}
+
+pub fn get_symbol(token: &str) -> Value {
+    let symbol = get_identifier(token);
+    if let Value::Symbol(..) = symbol {
+        symbol
+    } else {
+        panic!("can't parse \"{}\" as symbol", token);
+    }
 }
 
 pub fn get_end_bracket(bra: &str) -> Option<String> {
@@ -89,7 +121,7 @@ pub fn get_end_bracket(bra: &str) -> Option<String> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ValueType {
     Inference,
     None,

@@ -6,6 +6,7 @@ use std::io::Stdin;
 use std::io;
 use std::fs::File;
 use std::env;
+use std::collections::HashMap;
 
 mod parser;
 use parser::element;
@@ -49,6 +50,29 @@ fn read_tokens(stream: &mut BufRead) -> Vec<String> {
     return tokens;
 }
 
+#[derive(Debug, Clone)]
+pub struct Scope {
+    values: HashMap<String, element::Element>,
+}
+
+impl Scope {
+    pub fn new() -> Scope {
+        Scope{ values: HashMap::new() }
+    }
+
+    pub fn get(&self, key: &str) -> &element::Element {
+        if let Some(el) = self.values.get(key) {
+            el
+        } else {
+            panic!("Access to undefined symbol \"{}\"", key);
+        }
+    }
+
+    pub fn set(&mut self, key: &str, value: element::Element) {
+        self.values.insert(key.to_string(), value);
+    }
+}
+
 fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket: String) -> Option<element::Element> {
     if *pos >= tokens.len() {
         return None;
@@ -56,7 +80,7 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
     }
 
     let mut result: element::Element = if limit == -1 {
-        // single file scope
+        // file level scope
         element::Element{
             value: element::Value::FileScope(),
             value_type: element::ValueType::None,
@@ -103,7 +127,6 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
         }
         element::Value::Brackets(..) => {
             while let Some(next) = parse_element(tokens, pos, 0, end_bracket.clone()) {
-                //println!("bracket childlen = {:?}", next);
                 match next.value {
                     element::Value::Brackets(ref bra) => {
                         if *bra == end_bracket {
@@ -129,6 +152,18 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
                 }
             }
         }
+        ref x if *x == element::get_symbol("let") => {
+            if let Some(next) = parse_element(tokens, pos, 1, String::new()) {
+                match next.value {
+                    ref ope if *ope == element::get_operator("=") => {
+                        result.childlen = next.childlen;
+                    }
+                    _ => {
+                        panic!("Invalid syntax: operator 'let' can't found '=' token.");
+                    }
+                }
+            }
+        }
         _ => {}
     }
 
@@ -137,8 +172,10 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
         if *pos >= tokens.len() {
             break;
         } else if let Some(next_element) = element::get_element(&tokens[*pos]) {
-            if let element::Value::Operator(..) = next_element.value {
-                if let Some(next) = parse_element(tokens, pos, limit, end_bracket.clone()) {
+            if let element::Value::Operator(_, priority) = next_element.value {
+                if priority < limit {  // check priority of operator
+                    break;
+                } else if let Some(next) = parse_element(tokens, pos, limit, end_bracket.clone()) {
                     result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone());
                 } else {
                     panic!("Invalid syntax");
@@ -154,7 +191,7 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
     return Some(result);
 }
 
-//fn reorder_elelemnt<'a>(tokens: &[String], pos: &mut usize, el: &'a mut element::Element, el_ope: &'a mut element::Element) -> &'a mut element::Element {
+// use to parse operator
 fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element, mut el_ope: element::Element, end_bracket: String) -> element::Element {
     if let element::Value::Operator(_, priority_ope) = el_ope.value {
         // finding left element
@@ -186,52 +223,86 @@ fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element
     }
 }
 
-fn eval(el: &element::Element) -> i64 {
+fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element> {
+    // for '+', '-', '*', '/'
+    let calc = |el: &element::Element, scope: &mut Scope, func: fn(l: i64, r: i64) -> i64| -> Option<element::Element> {
+        if let [el_l, el_r] = &el.childlen[..] {
+            if let Some(mut l) = eval(el_l, scope) {
+                if let Some(r) = eval(el_r, scope) {
+                    if let element::Value::Integer(int_l) = l.value {
+                        if let element::Value::Integer(int_r) = r.value {
+                            l.value = element::Value::Integer(func(int_l, int_r));
+                        }
+                    }
+                    Some(l)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            panic!("Invalid syntax");
+        }
+    };
+
+    // for 'let'
+    let ope_let = |el: &element::Element, scope: &mut Scope, update: bool| -> Option<element::Element> {
+        if let [el_l, el_r] = &el.childlen[..] {
+            if let Some(r) = eval(el_r, scope) {
+                if let element::Value::Identifier(id_l) = &el_l.value {
+                    if update {
+                        scope.get(id_l);
+                    }
+                    scope.set(&id_l, r.clone());
+                    return Some(r);
+                }
+            }
+            None
+        } else {
+            panic!("Invalid syntax");
+        }
+    };
+
     match &el.value {
         element::Value::FileScope() => {
-            let mut ret = 0;
+            let mut ret = None;
             for el in &el.childlen {
-                ret = eval(el);
+                ret = eval(el, scope);
             }
             ret
         }
-        element::Value::Integer(n) => {
-            *n
+        element::Value::Integer(_) => {
+            Some(el.clone())
         }
-        x if *x == element::OPERATORS["+"] => {
-            if let [l, r] = &el.childlen[..] {
-                eval(l) + eval(r)
-            } else {
-                panic!("Invalid syntax");
-            }
+        x if *x == element::get_operator("+") => {
+            calc(el, scope, |l, r| l + r)
         }
-        x if *x == element::OPERATORS["-"] => {
-            if let [l, r] = &el.childlen[..] {
-                eval(l) - eval(r)
-            } else {
-                panic!("Invalid syntax");
-            }
+        x if *x == element::get_operator("-") => {
+            calc(el, scope, |l, r| l - r)
         }
-        x if *x == element::OPERATORS["*"] => {
-            if let [l, r] = &el.childlen[..] {
-                eval(l) * eval(r)
-            } else {
-                panic!("Invalid syntax");
-            }
+        x if *x == element::get_operator("*") => {
+            calc(el, scope, |l, r| l * r)
         }
-        x if *x == element::OPERATORS["/"] => {
-            if let [l, r] = &el.childlen[..] {
-                let r_val = eval(r);
-                if r_val == 0 {
+        x if *x == element::get_operator("/") => {
+            calc(el, scope, |l, r| {
+                if r == 0 {
                     panic!("divide by zero");
                 }
-                eval(l) / r_val
-            } else {
-                panic!("Invalid syntax");
-            }
+                l / r
+            })
+        }
+        x if *x == element::get_operator("=") => {
+            ope_let(el, scope, true)
+        }
+        x if *x == element::get_symbol("let") => {
+            ope_let(el, scope, false)
+        }
+        element::Value::Identifier(id) => {
+            Some(scope.get(id).clone())
         }
         element::Value::Brackets(x) if x == "(" => {
-            eval(el.childlen.first().unwrap())
+            eval(el.childlen.first().unwrap(), scope)
         }
         _ => {
             panic!("Invalid syntax");
@@ -267,14 +338,12 @@ fn main() {
     }
 
     // parse
-    let mut pos: usize = 0;
-    let el = parse_element(&tokens, &mut pos, -1, String::new());
-    //println!("parse_element: {:#?}", el);
+    let el = parse_element(&tokens, &mut 0, -1, String::new());
 
     // evaluate
     if let Some(el) = el {
         println!("parse_element:\n{}", el);
-        let result = eval(&el);
-        println!("eval: {:#?}", result);
+        let result = eval(&el, &mut Scope::new());
+        println!("eval: {:?}", result.unwrap().value);
     }
 }

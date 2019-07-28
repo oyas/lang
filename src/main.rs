@@ -55,39 +55,24 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
         //panic!("out of bounds");
     }
 
-    // current token
-    let token = &tokens[*pos];
-    *pos += 1;
-    if token == "\n" {
-        return parse_element(tokens, pos, limit, end_bracket);
-    }
-    // parse
-    let mut result: element::Element = match token.chars().nth(0) {
-        Some(n) if n.is_ascii_digit() => {
-            let value = token.parse::<i64>().ok().unwrap();
-            element::Element{
-                value: element::Value::Integer(value),
-                value_type: element::ValueType::Inference,
-                childlen: Vec::new(),
-            }
+    let mut result: element::Element = if limit == -1 {
+        // single file scope
+        element::Element{
+            value: element::Value::FileScope(),
+            value_type: element::ValueType::None,
+            childlen: Vec::new(),
         }
-        Some('+') | Some('-') | Some('*') | Some('/') => {
-            let ope = token.parse::<char>().ok().unwrap();
-            element::Element{
-                value: element::get_operator(&ope.to_string()),
-                value_type: element::ValueType::Inference,
-                childlen: Vec::new(),
-            }
+    } else {
+        // read current token
+        let token = &tokens[*pos];
+        *pos += 1;
+        if limit > 0 && token == "\n" {
+            return parse_element(tokens, pos, limit, end_bracket);
         }
-        Some('(') | Some(')') => {
-            let bra = token.parse::<char>().ok().unwrap();
-            element::Element{
-                value: element::Value::Brackets(bra.to_string()),
-                value_type: element::ValueType::Inference,
-                childlen: Vec::new(),
-            }
-        }
-        _ => {
+        // parse
+        if let Some(el) = element::get_element(token) {
+            el
+        } else {
             return None;
         }
     };
@@ -113,38 +98,52 @@ fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bracket
 
     // read childlen elements
     match result.value {
-        element::Value::Operator(..) => {
+        element::Value::Operator(..) | element::Value::EndLine() => {
             return Some(result);
         }
         element::Value::Brackets(..) => {
-            loop {
-                let nextw = parse_element(tokens, pos, 0, end_bracket.clone());
-                if let Some(next) = nextw {
-                    println!("bracket childlen = {:?}", next);
-                    if let element::Value::Brackets(ref bra) = next.value {
-                        println!("end_bracket = {}", end_bracket);
+            while let Some(next) = parse_element(tokens, pos, 0, end_bracket.clone()) {
+                //println!("bracket childlen = {:?}", next);
+                match next.value {
+                    element::Value::Brackets(ref bra) => {
                         if *bra == end_bracket {
                             break;
+                        } else {
+                            result.childlen.push(next);
                         }
                     }
-                    result.childlen.push(next);
-                } else {
-                    break;
+                    element::Value::EndLine() => {}
+                    _ => {
+                        result.childlen.push(next);
+                    }
                 }
             }
         }
-        _ => {
+        element::Value::FileScope() => {
+            while let Some(next) = parse_element(tokens, pos, 0, end_bracket.clone()) {
+                match next.value {
+                    element::Value::EndLine() => {}
+                    _ => {
+                        result.childlen.push(next);
+                    }
+                }
+            }
         }
+        _ => {}
     }
 
     // check if the next token is operator
     loop {
-        let nextw = parse_element(tokens, pos, limit, end_bracket.clone());
-        if let Some(next) = nextw {
-            if let element::Value::Operator(..) = next.value {
-                result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone());
+        if *pos >= tokens.len() {
+            break;
+        } else if let Some(next_element) = element::get_element(&tokens[*pos]) {
+            if let element::Value::Operator(..) = next_element.value {
+                if let Some(next) = parse_element(tokens, pos, limit, end_bracket.clone()) {
+                    result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone());
+                } else {
+                    panic!("Invalid syntax");
+                }
             } else {
-                *pos -= 1;
                 break;
             }
         } else {
@@ -189,6 +188,13 @@ fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element
 
 fn eval(el: &element::Element) -> i64 {
     match &el.value {
+        element::Value::FileScope() => {
+            let mut ret = 0;
+            for el in &el.childlen {
+                ret = eval(el);
+            }
+            ret
+        }
         element::Value::Integer(n) => {
             *n
         }
@@ -260,10 +266,14 @@ fn main() {
         println!("{:#?}", input);
     }
 
+    // parse
     let mut pos: usize = 0;
-    let el = parse_element(&tokens, &mut pos, 0, String::new());
-    println!("parse_element: {:#?}", el);
+    let el = parse_element(&tokens, &mut pos, -1, String::new());
+    //println!("parse_element: {:#?}", el);
+
+    // evaluate
     if let Some(el) = el {
+        println!("parse_element:\n{}", el);
         let result = eval(&el);
         println!("eval: {:#?}", result);
     }

@@ -24,6 +24,8 @@ pub enum Value {
     Bracket(String),        // "(", ")", "{", "}", ...
     EndLine(),              // "\n"
     FileScope(),            // the top level element
+    Type(i64),
+    Space(i64),             // space or indent. value is count of spaces. But, if include tabs, the value is -1
 }
 
 pub fn get_element(token: &str) -> Option<Element> {
@@ -70,8 +72,42 @@ pub fn get_element(token: &str) -> Option<Element> {
                 childlen: Vec::new(),
             })
         }
+        Some(' ') => {
+            let mut count = 0;
+            for c in token.chars() {
+                if c == ' ' {
+                    count += 1;
+                } else {
+                    count = -1;
+                    break;
+                }
+            }
+            Some(Element{
+                value: Value::Space(count),
+                value_type: ValueType::None,
+                childlen: Vec::new(),
+            })
+        }
         _ => None,
     }
+}
+
+pub fn get_next_operator(tokens: &[String], mut pos: usize) -> Option<Element> {
+    while pos < tokens.len() {
+        if let Some(el) = get_element(&tokens[pos]) {
+            match el.value {
+                Value::Operator(..) => {
+                    return Some(el);
+                }
+                Value::EndLine() | Value::Space(_) => {}
+                _ => {
+                    return None;
+                }
+            }
+        }
+        pos += 1;
+    }
+    None
 }
 
 lazy_static! {
@@ -138,6 +174,7 @@ pub fn get_end_bracket(bra: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub enum ValueType {
     Inference,
+    Id(i64),
     None,
 }
 
@@ -158,5 +195,15 @@ impl Element {
 impl fmt::Display for Element {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         self.print_with_prefix(fmt, "")
+    }
+}
+
+impl std::string::ToString for Value {
+    fn to_string(&self) -> String {
+        match self {
+            Value::Integer(value) => value.to_string(),
+            Value::String(value) => value.to_string(),
+            _ => String::new(),
+        }
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "rust-lang"
+name = "rustlang"
 version = "0.1.0"
 authors = ["oyas <poteto83@gmail.com>"]
 edition = "2018"

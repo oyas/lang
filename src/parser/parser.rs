@@ -7,17 +7,32 @@ pub fn line_to_tokens(buffer: &str) -> Vec<String> {
     buffer.push('\n');
     for c in buffer.chars() {
         if c.is_whitespace() {
-            if !token.is_empty() {
-                tokens.push(token.clone());
-                token.clear();
+            if let Some(x) = token.chars().nth(0) {
+                if !x.is_whitespace() {
+                    tokens.push(token.clone());
+                    token.clear();
+                }
             }
+            token.push(c);
         } else if c.is_ascii_punctuation() {
             if !token.is_empty() {
                 tokens.push(token.clone());
                 token.clear();
             }
-            tokens.push(c.to_string());
+            if c == '#' {
+                // following tokens are comment
+                break;
+            } else {
+                tokens.push(c.to_string());
+                continue;
+            }
         } else {
+            if let Some(x) = token.chars().nth(0) {
+                if x.is_whitespace() {
+                    tokens.push(token.clone());
+                    token.clear();
+                }
+            }
             token.push(c);
         }
     }
@@ -42,12 +57,21 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bra
         // read current token
         let token = &tokens[*pos];
         *pos += 1;
-        if limit > 0 && token == "\n" {
-            return parse_element(tokens, pos, limit, end_bracket);
-        }
         // parse
         if let Some(el) = element::get_element(token) {
-            el
+            match el.value {
+                element::Value::EndLine() => {
+                    if limit > 0 {
+                        return parse_element(tokens, pos, limit, end_bracket);
+                    } else {
+                        el
+                    }
+                }
+                element::Value::Space(..) => {
+                    return parse_element(tokens, pos, limit, end_bracket);
+                }
+                _ => el
+            }
         } else {
             return None;
         }
@@ -123,11 +147,11 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, limit: i32, mut end_bra
     loop {
         if *pos >= tokens.len() {
             break;
-        } else if let Some(next_element) = element::get_element(&tokens[*pos]) {
+        } else if let Some(next_element) = element::get_next_operator(tokens, *pos) {
             if let element::Value::Operator(_, priority) = next_element.value {
                 if priority < limit {  // check priority of operator
                     break;
-                } else if let Some(next) = parse_element(tokens, pos, limit, end_bracket.clone()) {
+                } else if let Some(next) = parse_element(tokens, pos, priority, end_bracket.clone()) {
                     result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone());
                 } else {
                     panic!("Invalid syntax");

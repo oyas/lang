@@ -27,7 +27,6 @@ fn read_tokens(stream: &mut BufRead) -> Vec<String> {
     return tokens;
 }
 
-
 pub fn run(file_name: &str, show_log: bool) -> Option<parser::element::Element> {
     // read from source
     let tokens: Vec<String> = if file_name.is_empty() {

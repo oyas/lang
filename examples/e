@@ -1,0 +1,9 @@
+# if statement test
+
+let condition = false
+if condition {
+    1 + 2
+} else {
+    let a = 3
+    2 + a
+}

@@ -74,7 +74,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
             }
             ret
         }
-        element::Value::Integer(_) => {
+        element::Value::Integer(_) | element::Value::Boolean(_) => {
             Some(el.clone())
         }
         x if *x == element::get_operator("+") => {
@@ -100,11 +100,40 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
         x if *x == element::get_symbol("let") => {
             ope_let(el, scope, false)
         }
+        x if *x == element::get_symbol("if") => {
+            match &el.childlen.first() {
+                Some(condition) => {
+                    let mut scope = scope.clone();
+                    match eval(condition, &mut scope) {
+                        Some(c) => match c.value {
+                            element::Value::Boolean(true) => match el.childlen.get(1) {
+                                Some(el) => eval(el, &mut scope),
+                                None => panic!("Invalid syntax"),
+                            }
+                            element::Value::Boolean(false) => match el.childlen.get(2) {
+                                Some(el) => eval(el, &mut scope),
+                                None => panic!("Invalid syntax"),
+                            }
+                            _ => panic!("Invalid syntax"),
+                        }
+                        None => panic!("Invalid syntax"),
+                    }
+                }
+                None => panic!("Invalid syntax"),
+            }
+        }
         element::Value::Identifier(id) => {
             Some(scope.get(id).clone())
         }
         x if *x == element::get_bracket("(") => {
             eval(el.childlen.first().unwrap(), scope)
+        }
+        x if *x == element::get_bracket("{") => {
+            let mut res = None;
+            for el in &el.childlen {
+                res = eval(el, scope)
+            }
+            res
         }
         _ => {
             panic!("Invalid syntax");

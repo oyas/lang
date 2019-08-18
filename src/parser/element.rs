@@ -17,10 +17,11 @@ pub enum Value {
     Identifier(String),     // start with alphabetic char; variable or
     Integer(i64),           // 1234
     String(String),
+    Boolean(bool),          // true or false
     Operator(String,i32),   // infix notation, whitch required left and right element (operator string, priority)
     Symbol(String),         // reserved words: let, if, for, func ...
     Formula(String),
-    Scope(Box<Value>),
+    Scope(),
     Bracket(String),        // "(", ")", "{", "}", ...
     EndLine(),              // "\n"
     FileScope(),            // the top level element
@@ -58,7 +59,7 @@ pub fn get_element(token: &str) -> Option<Element> {
                 childlen: Vec::new(),
             })
         }
-        Some('(') | Some(')') => {
+        Some('(') | Some(')') | Some('{') | Some('}') => {
             Some(Element{
                 value: get_bracket(token),
                 value_type: ValueType::Inference,
@@ -92,17 +93,12 @@ pub fn get_element(token: &str) -> Option<Element> {
     }
 }
 
-pub fn get_next_operator(tokens: &[String], mut pos: usize) -> Option<Element> {
+pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<Element> {
     while pos < tokens.len() {
         if let Some(el) = get_element(&tokens[pos]) {
             match el.value {
-                Value::Operator(..) => {
-                    return Some(el);
-                }
-                Value::EndLine() | Value::Space(_) => {}
-                _ => {
-                    return None;
-                }
+                Value::EndLine() | Value::Space(_) => {},
+                _ => return Some(el),
             }
         }
         pos += 1;
@@ -122,8 +118,14 @@ lazy_static! {
         // Brackets
         m.insert("(".to_string(), Value::Bracket("(".to_string()));
         m.insert(")".to_string(), Value::Bracket(")".to_string()));
+        m.insert("{".to_string(), Value::Bracket("{".to_string()));
+        m.insert("}".to_string(), Value::Bracket("}".to_string()));
         // Keywords
         m.insert("let".to_string(), Value::Symbol("let".to_string()));
+        m.insert("if".to_string(), Value::Symbol("if".to_string()));
+        m.insert("else".to_string(), Value::Symbol("else".to_string()));
+        m.insert("true".to_string(), Value::Boolean(true));
+        m.insert("false".to_string(), Value::Boolean(false));
         m
     };
 }

@@ -48,6 +48,28 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
         }
     };
 
+    // for '==', '!='
+    let comp = |el: &element::Element, scope: &mut Scope, func: fn(l: element::Value, r: element::Value) -> bool| -> Option<element::Element> {
+        if let [el_l, el_r] = &el.childlen[..] {
+            if let Some(l) = eval(el_l, scope) {
+                if let Some(r) = eval(el_r, scope) {
+                    let value = func(l.value, r.value);
+                    Some(element::Element{
+                        value: element::Value::Boolean(value),
+                        value_type: element::ValueType::None,
+                        childlen: Vec::new(),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            panic!("Invalid syntax");
+        }
+    };
+
     // for 'let'
     let ope_let = |el: &element::Element, scope: &mut Scope, update: bool| -> Option<element::Element> {
         if let [el_l, el_r] = &el.childlen[..] {
@@ -93,6 +115,12 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
                 }
                 l / r
             })
+        }
+        x if *x == element::get_operator("==") => {
+            comp(el, scope, |l, r| {l == r})
+        }
+        x if *x == element::get_operator("!=") => {
+            comp(el, scope, |l, r| {l != r})
         }
         x if *x == element::get_operator("=") => {
             ope_let(el, scope, true)

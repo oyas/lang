@@ -19,6 +19,7 @@ pub enum Value {
     String(String),
     Boolean(bool),          // true or false
     Operator(String,i32),   // infix notation, whitch required left and right element (operator string, priority)
+    UnaryOperator(String,i32),  // "-", "!"
     Symbol(String),         // reserved words: let, if, for, func ...
     Formula(String),
     Scope(),
@@ -52,19 +53,16 @@ pub fn get_element(token: &str) -> Option<Element> {
                 childlen: Vec::new(),
             })
         }
-        Some('+') | Some('-') | Some('*') | Some('/') | Some('=') => {
-            Some(Element{
-                value: get_operator(token),
-                value_type: ValueType::Inference,
-                childlen: Vec::new(),
-            })
-        }
-        Some('(') | Some(')') | Some('{') | Some('}') => {
-            Some(Element{
-                value: get_bracket(token),
-                value_type: ValueType::Inference,
-                childlen: Vec::new(),
-            })
+        Some('+') | Some('-') | Some('*') | Some('/') | Some('=') | Some('!') | Some('(') | Some(')') | Some('{') | Some('}') => {
+            let value = get_identifier(token);
+            match value {
+                Value::Operator(..) | Value::UnaryOperator(..) | Value::Bracket(..) => Some(Element{
+                    value: value,
+                    value_type: ValueType::Inference,
+                    childlen: Vec::new(),
+                }),
+                _ => None,
+            }
         }
         Some('\n') => {
             Some(Element{
@@ -93,6 +91,34 @@ pub fn get_element(token: &str) -> Option<Element> {
     }
 }
 
+pub fn get_next_operator(tokens: &[String], mut pos: usize) -> Option<Element> {
+    while pos < tokens.len() {
+        if let Some(el) = get_element(&tokens[pos]) {
+            match el.value {
+                Value::EndLine() | Value::Space(_) => {},
+                Value::Integer(..) => return None,
+                _ => {
+                    if pos + 1 < tokens.len() {
+                        if let Some(el) = get_element(&format!("{}{}", &tokens[pos], &tokens[pos+1])) {
+                            if let Value::Operator(..) = el.value {
+                                return Some(el);
+                            }
+                        }
+                    }
+                    if let Some(el) = get_element(&tokens[pos]) {
+                        if let Value::Operator(..) = el.value {
+                            return Some(el);
+                        }
+                    }
+                    return None;
+                },
+            }
+        }
+        pos += 1;
+    }
+    None
+}
+
 pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<Element> {
     while pos < tokens.len() {
         if let Some(el) = get_element(&tokens[pos]) {
@@ -106,14 +132,18 @@ pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<El
     None
 }
 
+
 lazy_static! {
     pub static ref SYMBOLS: HashMap<String, Value> = {
         let mut m = HashMap::new();
         // Operators
+        m.insert("!".to_string(), Value::UnaryOperator("!".to_string(), 50));
         m.insert("*".to_string(), Value::Operator("*".to_string(), 30));
         m.insert("/".to_string(), Value::Operator("/".to_string(), 30));
         m.insert("+".to_string(), Value::Operator("+".to_string(), 20));
         m.insert("-".to_string(), Value::Operator("-".to_string(), 20));
+        m.insert("==".to_string(), Value::Operator("==".to_string(), 15));
+        m.insert("!=".to_string(), Value::Operator("!=".to_string(), 15));
         m.insert("=".to_string(), Value::Operator("=".to_string(), 10));
         // Brackets
         m.insert("(".to_string(), Value::Bracket("(".to_string()));
@@ -205,6 +235,7 @@ impl std::string::ToString for Value {
         match self {
             Value::Integer(value) => value.to_string(),
             Value::String(value) => value.to_string(),
+            Value::Boolean(value) => value.to_string(),
             _ => String::new(),
         }
     }

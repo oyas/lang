@@ -52,14 +52,18 @@ pub fn run(file_name: &str, show_log: bool) -> Option<parser::element::Element> 
     }
 
     // parse
-    let el = parser::parse_element(&tokens, &mut 0, -1, String::new());
+    let el = parser::parse_element(&tokens, &mut 0, "", -1, String::new());
 
     // evaluate
     if let Some(el) = &el {
         if show_log {
             println!("parse_element:\n{}", el);
         }
-        parser::eval(&el, &mut parser::Scope::new())
+        let result = parser::eval(&el, &mut parser::Scope::new());
+        if show_log {
+            println!("result: {:?}", result);
+        }
+        result
     } else {
         None
     }

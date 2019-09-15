@@ -1,5 +1,5 @@
-use std::fs;
 use rustlang::run;
+use std::fs;
 
 #[test]
 fn run_examples() {

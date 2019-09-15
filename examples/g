@@ -1,0 +1,10 @@
+# 'for' test
+
+let a = 5
+let sum = 0
+for a != 0 {
+    sum = sum + a
+    a = a - 1
+}
+
+sum

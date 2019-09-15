@@ -1,4 +1,4 @@
-# if statement test 2
+# 'if' statement test 2
 
 let a = 3
 if a == 1 {

@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use std::io::BufReader;
-use std::io::BufRead;
-use std::io::Stdin;
-use std::io;
 use std::fs::File;
+use std::io;
+use std::io::BufRead;
+use std::io::BufReader;
+use std::io::Stdin;
 
 mod parser;
 

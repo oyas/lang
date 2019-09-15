@@ -40,7 +40,13 @@ pub fn line_to_tokens(buffer: &str) -> Vec<String> {
     tokens
 }
 
-pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i32, mut end_bracket: String) -> Option<element::Element> {
+pub fn parse_element(
+    tokens: &[String],
+    pos: &mut usize,
+    expect: &str,
+    limit: i32,
+    mut end_bracket: String,
+) -> Option<element::Element> {
     // check pos is within range
     if *pos >= tokens.len() {
         return None;
@@ -50,7 +56,7 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
     // current element
     let mut result: element::Element = if limit == -1 {
         // file level scope
-        element::Element{
+        element::Element {
             value: element::Value::FileScope(),
             value_type: element::ValueType::None,
             childlen: Vec::new(),
@@ -66,8 +72,8 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
             while token.len() < expect.len() {
                 if let Some(el) = element::get_element(&tokens[cur]) {
                     match el.value {
-                        element::Value::EndLine() => {},
-                        element::Value::Space(..) => {},
+                        element::Value::EndLine() => {}
+                        element::Value::Space(..) => {}
                         _ => token += &tokens[cur],
                     }
                 }
@@ -93,7 +99,7 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
                 element::Value::Space(..) => {
                     return parse_element(tokens, pos, "", limit, end_bracket);
                 }
-                _ => el
+                _ => el,
             }
         } else {
             return None;
@@ -154,7 +160,10 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
                         next_is_endline = false;
                     }
                     _ => {
-                        assert!(!next_is_endline, format!("Invalid syntax: unexpected element {:?}.", next.value));
+                        assert!(
+                            !next_is_endline,
+                            format!("Invalid syntax: unexpected element {:?}.", next.value)
+                        );
                         result.childlen.push(next);
                         next_is_endline = true;
                     }
@@ -170,7 +179,7 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
                     _ => {
                         panic!("Invalid syntax: operator 'let' can't found '=' token.");
                     }
-                }
+                },
                 None => {
                     panic!("Invalid syntax: operator 'let' can't found '=' token.");
                 }
@@ -187,7 +196,7 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
                         result.childlen.push(next);
                     }
                     _ => panic!("Invalid syntax: operator 'if' can't found '{' token."),
-                }
+                },
                 None => panic!("Invalid syntax: operator 'if' can't found '{' token."),
             }
             if let Some(next_element) = element::get_next_nonblank_element(tokens, *pos) {
@@ -205,6 +214,21 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
                 None => panic!("Invalid syntax: operator 'else' can't found next element."),
             }
         }
+        ref x if *x == element::get_symbol("for") => {
+            match parse_element(tokens, pos, "", 1, String::new()) {
+                Some(next) => result.childlen.push(next),
+                None => panic!("Invalid syntax: operator 'for' can't found statement."),
+            }
+            match parse_element(tokens, pos, "", 1, String::new()) {
+                Some(next) => match &next.value {
+                    ope if *ope == element::get_bracket("{") => {
+                        result.childlen.push(next);
+                    }
+                    _ => panic!("Invalid syntax: operator 'for' can't found '{' token."),
+                },
+                None => panic!("Invalid syntax: operator 'for' can't found '{' token."),
+            }
+        }
         _ => {}
     }
 
@@ -214,11 +238,14 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
             break;
         } else if let Some(next_element) = element::get_next_operator(tokens, *pos) {
             if let element::Value::Operator(ope, priority) = next_element.value {
-                if priority < limit {  // check priority of operator
+                if priority < limit {
+                    // check priority of operator
                     break;
                 }
                 match parse_element(tokens, pos, &ope, priority, end_bracket.clone()) {
-                    Some(next) => result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone()),
+                    Some(next) => {
+                        result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone())
+                    }
                     None => panic!("Invalid syntax"),
                 }
             } else {
@@ -233,7 +260,13 @@ pub fn parse_element(tokens: &[String], pos: &mut usize, expect: &str, limit: i3
 }
 
 // use to parse operator
-fn reorder_elelemnt(tokens: &[String], pos: &mut usize, mut el: element::Element, mut el_ope: element::Element, end_bracket: String) -> element::Element {
+fn reorder_elelemnt(
+    tokens: &[String],
+    pos: &mut usize,
+    mut el: element::Element,
+    mut el_ope: element::Element,
+    end_bracket: String,
+) -> element::Element {
     if let element::Value::Operator(_, priority_ope) = el_ope.value {
         // finding left element
         if let element::Value::Operator(_, priority) = el.value {

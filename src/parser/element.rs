@@ -4,7 +4,6 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fmt;
 
-
 #[derive(Debug, Clone)]
 pub struct Element {
     pub value: Value,
@@ -14,63 +13,58 @@ pub struct Element {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Value {
-    Identifier(String),     // start with alphabetic char; variable or
-    Integer(i64),           // 1234
+    Identifier(String), // start with alphabetic char; variable or
+    Integer(i64),       // 1234
     String(String),
-    Boolean(bool),          // true or false
-    Operator(String,i32),   // infix notation, whitch required left and right element (operator string, priority)
-    UnaryOperator(String,i32),  // "-", "!"
-    Symbol(String),         // reserved words: let, if, for, func ...
+    Boolean(bool),              // true or false
+    Operator(String, i32), // infix notation, whitch required left and right element (operator string, priority)
+    UnaryOperator(String, i32), // "-", "!"
+    Symbol(String),        // reserved words: let, if, for, func ...
     Formula(String),
     Scope(),
-    Bracket(String),        // "(", ")", "{", "}", ...
-    EndLine(),              // "\n"
-    FileScope(),            // the top level element
+    Bracket(String), // "(", ")", "{", "}", ...
+    EndLine(),       // "\n"
+    FileScope(),     // the top level element
     Type(i64),
-    Space(i64),             // space or indent. value is count of spaces. But, if include tabs, the value is -1
+    Space(i64), // space or indent. value is count of spaces. But, if include tabs, the value is -1
 }
 
 pub fn get_element(token: &str) -> Option<Element> {
     match token.chars().nth(0) {
-        Some(n) if n.is_ascii_digit() => {
-            match token.parse::<i64>() {
-                Ok(value) =>  {
-                    Some(Element{
-                        value: Value::Integer(value),
+        Some(n) if n.is_ascii_digit() => match token.parse::<i64>() {
+            Ok(value) => Some(Element {
+                value: Value::Integer(value),
+                value_type: ValueType::Inference,
+                childlen: Vec::new(),
+            }),
+            Err(err) => {
+                panic!("can't parse \"{}\" as integer: {}", token, err);
+            }
+        },
+        Some(a) if a.is_ascii_alphabetic() => Some(Element {
+            value: get_identifier(token),
+            value_type: ValueType::Inference,
+            childlen: Vec::new(),
+        }),
+        Some('+') | Some('-') | Some('*') | Some('/') | Some('=') | Some('!') | Some('(')
+        | Some(')') | Some('{') | Some('}') => {
+            let value = get_identifier(token);
+            match value {
+                Value::Operator(..) | Value::UnaryOperator(..) | Value::Bracket(..) => {
+                    Some(Element {
+                        value: value,
                         value_type: ValueType::Inference,
                         childlen: Vec::new(),
                     })
                 }
-                Err(err) => {
-                    panic!("can't parse \"{}\" as integer: {}", token, err);
-                }
-            }
-        }
-        Some(a) if a.is_ascii_alphabetic() => {
-            Some(Element{
-                value: get_identifier(token),
-                value_type: ValueType::Inference,
-                childlen: Vec::new(),
-            })
-        }
-        Some('+') | Some('-') | Some('*') | Some('/') | Some('=') | Some('!') | Some('(') | Some(')') | Some('{') | Some('}') => {
-            let value = get_identifier(token);
-            match value {
-                Value::Operator(..) | Value::UnaryOperator(..) | Value::Bracket(..) => Some(Element{
-                    value: value,
-                    value_type: ValueType::Inference,
-                    childlen: Vec::new(),
-                }),
                 _ => None,
             }
         }
-        Some('\n') => {
-            Some(Element{
-                value: Value::EndLine(),
-                value_type: ValueType::None,
-                childlen: Vec::new(),
-            })
-        }
+        Some('\n') => Some(Element {
+            value: Value::EndLine(),
+            value_type: ValueType::None,
+            childlen: Vec::new(),
+        }),
         Some(' ') => {
             let mut count = 0;
             for c in token.chars() {
@@ -81,7 +75,7 @@ pub fn get_element(token: &str) -> Option<Element> {
                     break;
                 }
             }
-            Some(Element{
+            Some(Element {
                 value: Value::Space(count),
                 value_type: ValueType::None,
                 childlen: Vec::new(),
@@ -95,11 +89,13 @@ pub fn get_next_operator(tokens: &[String], mut pos: usize) -> Option<Element> {
     while pos < tokens.len() {
         if let Some(el) = get_element(&tokens[pos]) {
             match el.value {
-                Value::EndLine() | Value::Space(_) => {},
+                Value::EndLine() | Value::Space(_) => {}
                 Value::Integer(..) => return None,
                 _ => {
                     if pos + 1 < tokens.len() {
-                        if let Some(el) = get_element(&format!("{}{}", &tokens[pos], &tokens[pos+1])) {
+                        if let Some(el) =
+                            get_element(&format!("{}{}", &tokens[pos], &tokens[pos + 1]))
+                        {
                             if let Value::Operator(..) = el.value {
                                 return Some(el);
                             }
@@ -111,7 +107,7 @@ pub fn get_next_operator(tokens: &[String], mut pos: usize) -> Option<Element> {
                         }
                     }
                     return None;
-                },
+                }
             }
         }
         pos += 1;
@@ -123,7 +119,7 @@ pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<El
     while pos < tokens.len() {
         if let Some(el) = get_element(&tokens[pos]) {
             match el.value {
-                Value::EndLine() | Value::Space(_) => {},
+                Value::EndLine() | Value::Space(_) => {}
                 _ => return Some(el),
             }
         }
@@ -131,7 +127,6 @@ pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<El
     }
     None
 }
-
 
 lazy_static! {
     pub static ref SYMBOLS: HashMap<String, Value> = {
@@ -156,6 +151,7 @@ lazy_static! {
         m.insert("else".to_string(), Value::Symbol("else".to_string()));
         m.insert("true".to_string(), Value::Boolean(true));
         m.insert("false".to_string(), Value::Boolean(false));
+        m.insert("for".to_string(), Value::Symbol("for".to_string()));
         m
     };
 }
@@ -210,10 +206,12 @@ pub enum ValueType {
     None,
 }
 
-
 impl Element {
     fn print_with_prefix(&self, fmt: &mut fmt::Formatter, prefix: &str) -> fmt::Result {
-        if let Err(err) = fmt.write_fmt(format_args!("{}{:?} : {:?}", prefix, self.value, self.value_type)) {
+        if let Err(err) = fmt.write_fmt(format_args!(
+            "{}{:?} : {:?}",
+            prefix, self.value, self.value_type
+        )) {
             return Err(err);
         }
         for child in &self.childlen {

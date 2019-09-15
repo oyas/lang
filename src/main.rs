@@ -1,5 +1,5 @@
-use std::env;
 use rustlang::run;
+use std::env;
 
 fn main() {
     let args: Vec<String> = env::args().collect::<Vec<String>>().split_off(1);
@@ -15,6 +15,6 @@ fn main() {
 
     match result {
         Some(el) => println!("{}", el.value.to_string()),
-        None => {},
+        None => {}
     }
 }

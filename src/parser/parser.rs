@@ -45,7 +45,8 @@ pub fn parse_element(
     pos: &mut usize,
     expect: &str,
     limit: i32,
-    mut end_bracket: String,
+    end_bracket: &str,
+    read_one_element: bool,
 ) -> Option<element::Element> {
     // check pos is within range
     if *pos >= tokens.len() {
@@ -53,14 +54,12 @@ pub fn parse_element(
         //panic!("out of bounds");
     }
 
+    let mut end_bracket = end_bracket.to_string();
+
     // current element
     let mut result: element::Element = if limit == -1 {
         // file level scope
-        element::Element {
-            value: element::Value::FileScope(),
-            value_type: element::ValueType::None,
-            childlen: Vec::new(),
-        }
+        element::Element::new(element::Value::FileScope())
     } else {
         // read current token
         let token = if expect.is_empty() {
@@ -91,13 +90,13 @@ pub fn parse_element(
             match el.value {
                 element::Value::EndLine() => {
                     if limit > 0 {
-                        return parse_element(tokens, pos, "", limit, end_bracket);
+                        return parse_element(tokens, pos, "", limit, &end_bracket, false);
                     } else {
                         el
                     }
                 }
                 element::Value::Space(..) => {
-                    return parse_element(tokens, pos, "", limit, end_bracket);
+                    return parse_element(tokens, pos, "", limit, &end_bracket, false);
                 }
                 _ => el,
             }
@@ -131,30 +130,51 @@ pub fn parse_element(
     }
 
     // read childlen elements
-    match result.value {
+    match &result.value {
+        element::Value::Identifier(_) => {
+            if let Some(next) = element::get_element(&tokens[*pos]) {
+                if next.value == element::get_bracket("(") {
+                    match parse_element(tokens, pos, "", 0, &end_bracket, true) {
+                        Some(next_el) => {
+                            println!("{}", next_el);
+                            result = element::make_function_call(result, next_el)
+                        }
+                        None => panic!("Invalid syntax"),
+                    }
+                }
+            }
+        }
         element::Value::Operator(..) | element::Value::EndLine() => {
             return Some(result);
         }
-        element::Value::Bracket(..) => {
-            while let Some(next) = parse_element(tokens, pos, "", 0, end_bracket.clone()) {
+        element::Value::Bracket(bra) if bra == "{" => {
+            while let Some(next) = parse_element(tokens, pos, "", 0, &end_bracket, false) {
                 match next.value {
-                    element::Value::Bracket(ref bra) => {
-                        if *bra == end_bracket {
-                            break;
-                        } else {
-                            result.childlen.push(next);
-                        }
-                    }
+                    element::Value::Bracket(ref bra) if *bra == end_bracket => break,
                     element::Value::EndLine() => {}
+                    _ => result.childlen.push(next),
+                }
+            }
+        }
+        element::Value::Bracket(bra) if bra == "(" => {
+            let mut next_is_comma = false;
+            while let Some(next) = parse_element(tokens, pos, "", 1, &end_bracket, false) {
+                match next.value {
+                    element::Value::Bracket(ref bra) if *bra == end_bracket => break,
+                    element::Value::Comma() => {
+                        assert!(next_is_comma, "Invalid syntax: next is not comma");
+                        next_is_comma = !next_is_comma
+                    }
                     _ => {
-                        result.childlen.push(next);
+                        assert!(!next_is_comma, "Invalid syntax: next is comma");
+                        result.childlen.push(next)
                     }
                 }
             }
         }
         element::Value::FileScope() => {
             let mut next_is_endline = false;
-            while let Some(next) = parse_element(tokens, pos, "", 0, end_bracket.clone()) {
+            while let Some(next) = parse_element(tokens, pos, "", 0, &end_bracket, false) {
                 match next.value {
                     element::Value::EndLine() => {
                         next_is_endline = false;
@@ -170,89 +190,103 @@ pub fn parse_element(
                 }
             }
         }
-        ref x if *x == element::get_symbol("let") => {
-            match parse_element(tokens, pos, "", 1, String::new()) {
-                Some(next) => match next.value {
-                    ref ope if *ope == element::get_operator("=") => {
-                        result.childlen = next.childlen;
-                    }
-                    _ => {
-                        panic!("Invalid syntax: operator 'let' can't found '=' token.");
-                    }
-                },
-                None => {
-                    panic!("Invalid syntax: operator 'let' can't found '=' token.");
+        x if *x == element::get_symbol("let") => match parse_element(tokens, pos, "", 1, "", false) {
+            Some(next) => match next.value {
+                ref ope if *ope == element::get_operator("=") => {
+                    result.childlen = next.childlen;
                 }
+                _ => {
+                    panic!("Invalid syntax: operator 'let' couldn't find '=' token.");
+                }
+            },
+            None => {
+                panic!("Invalid syntax: operator 'let' couldn't find '=' token.");
             }
-        }
-        ref x if *x == element::get_symbol("if") => {
-            match parse_element(tokens, pos, "", 1, String::new()) {
+        },
+        x if *x == element::get_symbol("if") => {
+            match parse_element(tokens, pos, "", 1, "", false) {
                 Some(next) => result.childlen.push(next),
-                None => panic!("Invalid syntax: operator 'if' can't found statement."),
+                None => panic!("Invalid syntax: operator 'if' couldn't find statement."),
             }
-            match parse_element(tokens, pos, "", 1, String::new()) {
+            match parse_element(tokens, pos, "", 1, "", false) {
                 Some(next) => match &next.value {
                     ope if *ope == element::get_bracket("{") => {
                         result.childlen.push(next);
                     }
-                    _ => panic!("Invalid syntax: operator 'if' can't found '{' token."),
+                    _ => panic!("Invalid syntax: operator 'if' couldn't find '{' token."),
                 },
-                None => panic!("Invalid syntax: operator 'if' can't found '{' token."),
+                None => panic!("Invalid syntax: operator 'if' couldn't find '{' token."),
             }
             if let Some(next_element) = element::get_next_nonblank_element(tokens, *pos) {
                 if next_element.value == element::get_symbol("else") {
-                    match parse_element(tokens, pos, "else", 1, String::new()) {
+                    match parse_element(tokens, pos, "else", 1, "", false) {
                         Some(next) => result.childlen.push(next.childlen.first().unwrap().clone()),
                         None => panic!("Invalid syntax: reading 'else'"),
                     }
                 }
             }
         }
-        ref x if *x == element::get_symbol("else") => {
-            match parse_element(tokens, pos, "", 1, String::new()) {
+        x if *x == element::get_symbol("else") => match parse_element(tokens, pos, "", 1, "", false) {
+            Some(next) => result.childlen.push(next),
+            None => panic!("Invalid syntax: operator 'else' couldn't find next element."),
+        },
+        x if *x == element::get_symbol("for") => {
+            match parse_element(tokens, pos, "", 1, "", false) {
                 Some(next) => result.childlen.push(next),
-                None => panic!("Invalid syntax: operator 'else' can't found next element."),
+                None => panic!("Invalid syntax: operator 'for' couldn't find statement."),
+            }
+            match parse_element(tokens, pos, "", 1, "", false) {
+                Some(next) => match &next.value {
+                    ope if *ope == element::get_bracket("{") => result.childlen.push(next),
+                    _ => panic!("Invalid syntax: operator 'for' couldn't find '{' token."),
+                },
+                None => panic!("Invalid syntax: operator 'for' couldn't find '{' token."),
             }
         }
-        ref x if *x == element::get_symbol("for") => {
-            match parse_element(tokens, pos, "", 1, String::new()) {
-                Some(next) => result.childlen.push(next),
-                None => panic!("Invalid syntax: operator 'for' can't found statement."),
-            }
-            match parse_element(tokens, pos, "", 1, String::new()) {
+        x if *x == element::get_symbol("fun") => {
+            let fcall = match parse_element(tokens, pos, "", 1, "", false) {
                 Some(next) => match &next.value {
-                    ope if *ope == element::get_bracket("{") => {
-                        result.childlen.push(next);
-                    }
-                    _ => panic!("Invalid syntax: operator 'for' can't found '{' token."),
+                    element::Value::FunctionCall(_) => next,
+                    _ => panic!("Invalid syntax: symbol 'fun' couldn't parse function."),
                 },
-                None => panic!("Invalid syntax: operator 'for' can't found '{' token."),
-            }
+                None => panic!("Invalid syntax: symbol 'fun' couldn't parse function."),
+            };
+            let body = match parse_element(tokens, pos, "", 1, "", false) {
+                Some(next) => match &next.value {
+                    ope if *ope == element::get_bracket("{") => next,
+                    _ => panic!("Invalid syntax: operator 'fun' couldn't find '{' token."),
+                },
+                None => panic!("Invalid syntax: symbol 'fun' couldn't find '{' token."),
+            };
+            // make let element
+            result = element::make_function(result, fcall, body);
         }
         _ => {}
     }
 
     // check if the next token is operator
-    loop {
-        if *pos >= tokens.len() {
-            break;
-        } else if let Some(next_element) = element::get_next_operator(tokens, *pos) {
-            if let element::Value::Operator(ope, priority) = next_element.value {
-                if priority < limit {
-                    // check priority of operator
-                    break;
-                }
-                match parse_element(tokens, pos, &ope, priority, end_bracket.clone()) {
-                    Some(next) => {
-                        result = reorder_elelemnt(tokens, pos, result, next, end_bracket.clone())
+    if !read_one_element {
+        loop {
+            if *pos >= tokens.len() {
+                break;
+            } else if let Some(next_element) = element::get_next_operator(tokens, *pos) {
+                if let element::Value::Operator(ope, priority) = next_element.value {
+                    if priority < limit {
+                        // check priority of operator
+                        break;
                     }
-                    None => panic!("Invalid syntax"),
+                    match parse_element(tokens, pos, &ope, priority, &end_bracket, false) {
+                        Some(next) => {
+                            result = reorder_elelemnt(tokens, pos, result, next, &end_bracket)
+                        }
+                        None => panic!("Invalid syntax"),
+                    }
+                } else {
+                    break;
                 }
             } else {
                 break;
             }
-        } else {
-            break;
         }
     }
 
@@ -265,7 +299,7 @@ fn reorder_elelemnt(
     pos: &mut usize,
     mut el: element::Element,
     mut el_ope: element::Element,
-    end_bracket: String,
+    end_bracket: &str,
 ) -> element::Element {
     if let element::Value::Operator(_, priority_ope) = el_ope.value {
         // finding left element
@@ -285,7 +319,7 @@ fn reorder_elelemnt(
         // el_ope is parent node. el is left node
         el_ope.childlen.push(el);
         // read right token
-        let next = parse_element(tokens, pos, "", priority_ope, end_bracket);
+        let next = parse_element(tokens, pos, "", priority_ope, end_bracket, false);
         if let Some(next) = next {
             el_ope.childlen.push(next);
         } else {

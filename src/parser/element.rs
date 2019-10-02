@@ -1,18 +1,38 @@
 #![allow(dead_code)]
 
+use super::evaluator::Scope;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Element {
     pub value: Value,
-    pub value_type: ValueType,
     pub childlen: Vec<Element>,
+    pub value_type: ValueType,
+    pub scope: Option<Scope>,
+}
+
+impl Element {
+    pub fn new(value: Value) -> Element {
+        Element {
+            value: value,
+            value_type: ValueType::Inference,
+            childlen: Vec::new(),
+            scope: None,
+            ..Default::default()
+        }
+    }
+
+    fn set_childlen(mut self, childlen: Vec<Element>) -> Element {
+        self.childlen = childlen;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Value {
+    None,               // default value
     Identifier(String), // start with alphabetic char; variable or
     Integer(i64),       // 1234
     String(String),
@@ -27,44 +47,36 @@ pub enum Value {
     FileScope(),     // the top level element
     Type(i64),
     Space(i64), // space or indent. value is count of spaces. But, if include tabs, the value is -1
+    FunctionCall(String), // function call
+    Comma(),    // ","
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Value::None
+    }
 }
 
 pub fn get_element(token: &str) -> Option<Element> {
     match token.chars().nth(0) {
         Some(n) if n.is_ascii_digit() => match token.parse::<i64>() {
-            Ok(value) => Some(Element {
-                value: Value::Integer(value),
-                value_type: ValueType::Inference,
-                childlen: Vec::new(),
-            }),
+            Ok(value) => Some(Element::new(Value::Integer(value))),
             Err(err) => {
                 panic!("can't parse \"{}\" as integer: {}", token, err);
             }
         },
-        Some(a) if a.is_ascii_alphabetic() => Some(Element {
-            value: get_identifier(token),
-            value_type: ValueType::Inference,
-            childlen: Vec::new(),
-        }),
+        Some(a) if a.is_ascii_alphabetic() => Some(Element::new(get_identifier(token))),
         Some('+') | Some('-') | Some('*') | Some('/') | Some('=') | Some('!') | Some('(')
         | Some(')') | Some('{') | Some('}') => {
             let value = get_identifier(token);
             match value {
                 Value::Operator(..) | Value::UnaryOperator(..) | Value::Bracket(..) => {
-                    Some(Element {
-                        value: value,
-                        value_type: ValueType::Inference,
-                        childlen: Vec::new(),
-                    })
+                    Some(Element::new(value))
                 }
                 _ => None,
             }
         }
-        Some('\n') => Some(Element {
-            value: Value::EndLine(),
-            value_type: ValueType::None,
-            childlen: Vec::new(),
-        }),
+        Some('\n') => Some(Element::new(Value::EndLine())),
         Some(' ') => {
             let mut count = 0;
             for c in token.chars() {
@@ -75,11 +87,7 @@ pub fn get_element(token: &str) -> Option<Element> {
                     break;
                 }
             }
-            Some(Element {
-                value: Value::Space(count),
-                value_type: ValueType::None,
-                childlen: Vec::new(),
-            })
+            Some(Element::new(Value::Space(count)))
         }
         _ => None,
     }
@@ -128,6 +136,29 @@ pub fn get_next_nonblank_element(tokens: &[String], mut pos: usize) -> Option<El
     None
 }
 
+pub fn make_function_call(id: Element, params: Element) -> Element {
+    if let Value::Identifier(id_str) = id.value {
+        Element::new(Value::FunctionCall(id_str)).set_childlen(params.childlen)
+    } else {
+        panic!("can not make FunctionCall");
+    }
+}
+
+pub fn make_function(mut func: Element, function_call: Element, body: Element) -> Element {
+    if let Value::FunctionCall(id_str) = &function_call.value {
+        let mut params = get_element("(").unwrap();
+        params.childlen = function_call.childlen;
+        func.childlen.push(params);
+        func.childlen.push(body);
+        let mut let_el = get_element("let").unwrap();
+        let_el.childlen.push(get_element(id_str).unwrap());
+        let_el.childlen.push(func);
+        let_el
+    } else {
+        panic!("can not make Function");
+    }
+}
+
 lazy_static! {
     pub static ref SYMBOLS: HashMap<String, Value> = {
         let mut m = HashMap::new();
@@ -140,6 +171,8 @@ lazy_static! {
         m.insert("==".to_string(), Value::Operator("==".to_string(), 15));
         m.insert("!=".to_string(), Value::Operator("!=".to_string(), 15));
         m.insert("=".to_string(), Value::Operator("=".to_string(), 10));
+        // Symbol
+        m.insert(",".to_string(), Value::Comma());
         // Brackets
         m.insert("(".to_string(), Value::Bracket("(".to_string()));
         m.insert(")".to_string(), Value::Bracket(")".to_string()));
@@ -152,6 +185,7 @@ lazy_static! {
         m.insert("true".to_string(), Value::Boolean(true));
         m.insert("false".to_string(), Value::Boolean(false));
         m.insert("for".to_string(), Value::Symbol("for".to_string()));
+        m.insert("fun".to_string(), Value::Symbol("fun".to_string()));
         m
     };
 }
@@ -204,6 +238,12 @@ pub enum ValueType {
     Inference,
     Id(i64),
     None,
+}
+
+impl Default for ValueType {
+    fn default() -> Self {
+        ValueType::Inference
+    }
 }
 
 impl Element {

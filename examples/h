@@ -1,0 +1,13 @@
+# 'function' test
+
+fun func1(a) {
+    a + 1
+}
+
+fun func2(b) {
+    let a = 3
+    func1(a + b) + func1(b)
+}
+
+let d = 2
+func2(d)

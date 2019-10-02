@@ -52,7 +52,7 @@ pub fn run(file_name: &str, show_log: bool) -> Option<parser::element::Element> 
     }
 
     // parse
-    let el = parser::parse_element(&tokens, &mut 0, "", -1, String::new());
+    let el = parser::parse_element(&tokens, &mut 0, "", -1, "", false);
 
     // evaluate
     if let Some(el) = &el {

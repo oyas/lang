@@ -10,7 +10,7 @@ struct ScopeInner {
     parent: Option<Scope>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scope(Rc<RefCell<ScopeInner>>);
 
 impl Scope {
@@ -101,11 +101,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
             if let Some(l) = eval(el_l, scope) {
                 if let Some(r) = eval(el_r, scope) {
                     let value = func(l.value, r.value);
-                    Some(element::Element {
-                        value: element::Value::Boolean(value),
-                        value_type: element::ValueType::None,
-                        childlen: Vec::new(),
-                    })
+                    Some(element::Element::new(element::Value::Boolean(value)))
                 } else {
                     None
                 }
@@ -193,7 +189,48 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
             }),
             None => panic!("Invalid syntax"),
         },
-        element::Value::Identifier(id) => Some(scope.get(id).clone()),
+        x if *x == element::get_symbol("fun") => {
+            if el.childlen.len() < 2 {
+                panic!("Invalid syntax")
+            }
+            let mut new_el = el.clone();
+            new_el.scope = Some(scope.clone());
+            Some(new_el)
+        }
+        element::Value::FunctionCall(id) => {
+            let fun = scope.get(id);
+            if fun.value != element::get_symbol("fun") {
+                panic!("Invalid syntax: non-existent function call")
+            }
+            let params = &fun.childlen.first().unwrap().childlen;
+            let body = fun.childlen.last().unwrap();
+            if el.childlen.len() != params.len() {
+                panic!(
+                    "Invalid syntax: num of parameter is not mutch {} != {}",
+                    el.childlen.len(),
+                    params.len()
+                )
+            }
+            let mut eval_params: HashMap<String, element::Element> = HashMap::new();
+            for (i, param) in params.iter().enumerate() {
+                match eval(el.childlen.get(i).unwrap(), scope) {
+                    Some(value) => match &param.value {
+                        element::Value::Identifier(id) => {
+                            eval_params.insert(id.clone(), value.clone());
+                        }
+                        _ => panic!("Invalid syntax"),
+                    },
+                    None => panic!("Invalid syntax"),
+                }
+            }
+            fun.scope.unwrap().new_scope(|mut fun_scope| {
+                for (id, value) in &eval_params {
+                    fun_scope.set(&id, value.clone())
+                }
+                eval(body, &mut fun_scope)
+            })
+        }
+        element::Value::Identifier(id) => Some(scope.get(id)),
         x if *x == element::get_bracket("(") => eval(el.childlen.first().unwrap(), scope),
         x if *x == element::get_bracket("{") => {
             let mut res = None;

@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use super::evaluator::Scope;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fmt;
@@ -10,7 +9,6 @@ pub struct Element {
     pub value: Value,
     pub childlen: Vec<Element>,
     pub value_type: ValueType,
-    pub scope: Option<Scope>,
 }
 
 impl Element {
@@ -19,7 +17,7 @@ impl Element {
             value: value,
             value_type: ValueType::Inference,
             childlen: Vec::new(),
-            scope: None,
+            // scope: None,
             ..Default::default()
         }
     }

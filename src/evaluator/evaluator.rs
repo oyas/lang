@@ -2,11 +2,30 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use super::element;
+use crate::parser::element;
+
+#[derive(Debug, Clone)]
+pub struct EvaledElement {
+    pub el: element::Element,
+    scope: Option<Scope>,
+}
+
+impl EvaledElement {
+    pub fn new(el: element::Element) -> EvaledElement {
+        EvaledElement{ el : el, scope : None }
+    }
+
+    pub fn from_value(value: element::Value) -> EvaledElement {
+        EvaledElement{
+            el : element::Element::new(value),
+            scope : None,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct ScopeInner {
-    values: HashMap<String, Rc<RefCell<element::Element>>>,
+    values: HashMap<String, Rc<RefCell<EvaledElement>>>,
     parent: Option<Scope>,
 }
 
@@ -29,14 +48,14 @@ impl Scope {
         func(scope)
     }
 
-    pub fn get(&self, key: &str) -> element::Element {
+    pub fn get(&self, key: &str) -> EvaledElement {
         match self.get_mut(key) {
             Some(el) => el.borrow_mut().clone(),
             None => panic!("Access to undefined symbol \"{}\"", key),
         }
     }
 
-    pub fn set(&self, key: &str, value: element::Element) {
+    pub fn set(&self, key: &str, value: EvaledElement) {
         match self.get_mut(key) {
             Some(el) => *el.borrow_mut() = value,
             None => {
@@ -48,7 +67,7 @@ impl Scope {
         }
     }
 
-    pub fn get_mut(&self, key: &str) -> Option<Rc<RefCell<element::Element>>> {
+    pub fn get_mut(&self, key: &str) -> Option<Rc<RefCell<EvaledElement>>> {
         let mut scope = self.0.borrow_mut();
         match &scope.values.get(key) {
             Some(el) => Some(Rc::clone(el)),
@@ -66,24 +85,25 @@ impl Scope {
     }
 }
 
-pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element> {
+pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<EvaledElement> {
+    eval_inner(&EvaledElement::new(el.clone()), scope)
+}
+
+pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledElement> {
+    let el = &element.el;
+
     // for '+', '-', '*', '/'
     let calc = |el: &element::Element,
                 scope: &mut Scope,
                 func: fn(l: i64, r: i64) -> i64|
-     -> Option<element::Element> {
+     -> Option<EvaledElement> {
         if let [el_l, el_r] = &el.childlen[..] {
-            if let Some(mut l) = eval(el_l, scope) {
-                if let Some(r) = eval(el_r, scope) {
-                    if let element::Value::Integer(int_l) = l.value {
-                        if let element::Value::Integer(int_r) = r.value {
-                            l.value = element::Value::Integer(func(int_l, int_r));
-                        }
-                    }
-                    Some(l)
-                } else {
-                    None
+            if let (Some(mut l), Some(r)) = (eval(el_l, scope), eval(el_r, scope)) {
+                if let (element::Value::Integer(int_l), element::Value::Integer(int_r)) = (l.el.value.clone(), r.el.value) {
+                    let result = func(int_l, int_r);
+                    l.el.value = element::Value::Integer(result);
                 }
+                Some(l)
             } else {
                 None
             }
@@ -96,15 +116,11 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
     let comp = |el: &element::Element,
                 scope: &mut Scope,
                 func: fn(l: element::Value, r: element::Value) -> bool|
-     -> Option<element::Element> {
+     -> Option<EvaledElement> {
         if let [el_l, el_r] = &el.childlen[..] {
-            if let Some(l) = eval(el_l, scope) {
-                if let Some(r) = eval(el_r, scope) {
-                    let value = func(l.value, r.value);
-                    Some(element::Element::new(element::Value::Boolean(value)))
-                } else {
-                    None
-                }
+            if let (Some(l), Some(r)) = (eval(el_l, scope), eval(el_r, scope)) {
+                let value = func(l.el.value, r.el.value);
+                Some(EvaledElement::from_value(element::Value::Boolean(value)))
             } else {
                 None
             }
@@ -115,18 +131,17 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
 
     // for 'let'
     let ope_let =
-        |el: &element::Element, scope: &mut Scope, update: bool| -> Option<element::Element> {
+        |el: &element::Element, scope: &mut Scope, update: bool| -> Option<EvaledElement> {
             if let [el_l, el_r] = &el.childlen[..] {
-                if let Some(r) = eval(el_r, scope) {
-                    if let element::Value::Identifier(id_l) = &el_l.value {
-                        if update {
-                            scope.get(id_l);
-                        }
-                        scope.set(&id_l, r.clone());
-                        return Some(r);
+                if let (element::Value::Identifier(id_l), Some(r)) = (el_l.value.clone(), eval(el_r, scope)) {
+                    if update {
+                        scope.get(&id_l);
                     }
+                    scope.set(&id_l, r.clone());
+                    Some(r)
+                } else {
+                    None
                 }
-                None
             } else {
                 panic!("Invalid syntax");
             }
@@ -140,7 +155,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
             }
             ret
         }
-        element::Value::Integer(_) | element::Value::Boolean(_) => Some(el.clone()),
+        element::Value::Integer(_) | element::Value::Boolean(_) => Some(EvaledElement::new(el.clone())),
         x if *x == element::get_operator("+") => calc(el, scope, |l, r| l + r),
         x if *x == element::get_operator("-") => calc(el, scope, |l, r| l - r),
         x if *x == element::get_operator("*") => calc(el, scope, |l, r| l * r),
@@ -156,7 +171,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
         x if *x == element::get_symbol("let") => ope_let(el, scope, false),
         x if *x == element::get_symbol("if") => match &el.childlen.first() {
             Some(condition) => scope.new_scope(|mut scope| match eval(condition, &mut scope) {
-                Some(c) => match c.value {
+                Some(c) => match c.el.value {
                     element::Value::Boolean(true) => match el.childlen.get(1) {
                         Some(el) => eval(el, &mut scope),
                         None => panic!("Invalid syntax"),
@@ -174,7 +189,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
         x if *x == element::get_symbol("for") => match &el.childlen.first() {
             Some(condition) => scope.new_scope(|mut scope| {
                 while match eval(condition, &mut scope) {
-                    Some(c) => match c.value {
+                    Some(c) => match c.el.value {
                         element::Value::Boolean(c) => c,
                         _ => panic!("Invalid syntax"),
                     },
@@ -193,17 +208,17 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
             if el.childlen.len() < 2 {
                 panic!("Invalid syntax")
             }
-            let mut new_el = el.clone();
+            let mut new_el = EvaledElement::new(el.clone());
             new_el.scope = Some(scope.clone());
             Some(new_el)
         }
         element::Value::FunctionCall(id) => {
             let fun = scope.get(id);
-            if fun.value != element::get_symbol("fun") {
+            if fun.el.value != element::get_symbol("fun") {
                 panic!("Invalid syntax: non-existent function call")
             }
-            let params = &fun.childlen.first().unwrap().childlen;
-            let body = fun.childlen.last().unwrap();
+            let params = &fun.el.childlen.first().unwrap().childlen;
+            let body = fun.el.childlen.last().unwrap();
             if el.childlen.len() != params.len() {
                 panic!(
                     "Invalid syntax: num of parameter is not mutch {} != {}",
@@ -211,7 +226,7 @@ pub fn eval(el: &element::Element, scope: &mut Scope) -> Option<element::Element
                     params.len()
                 )
             }
-            let mut eval_params: HashMap<String, element::Element> = HashMap::new();
+            let mut eval_params: HashMap<String, EvaledElement> = HashMap::new();
             for (i, param) in params.iter().enumerate() {
                 match eval(el.childlen.get(i).unwrap(), scope) {
                     Some(value) => match &param.value {

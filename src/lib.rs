@@ -7,6 +7,7 @@ use std::io::BufReader;
 use std::io::Stdin;
 
 mod parser;
+mod evaluator;
 
 fn read_tokens(stream: &mut BufRead) -> Vec<String> {
     let mut tokens: Vec<String> = vec![];
@@ -59,11 +60,11 @@ pub fn run(file_name: &str, show_log: bool) -> Option<parser::element::Element> 
         if show_log {
             println!("parse_element:\n{}", el);
         }
-        let result = parser::eval(&el, &mut parser::Scope::new());
+        let result = evaluator::eval(&el, &mut evaluator::Scope::new());
         if show_log {
             println!("result: {:?}", result);
         }
-        result
+        result.and_then(|res| Some(res.el))
     } else {
         None
     }

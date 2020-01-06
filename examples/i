@@ -1,0 +1,7 @@
+# print function
+
+let a = 12
+print(a)  # 12
+
+# also show last statement
+true

@@ -34,6 +34,10 @@ pub struct Scope(Rc<RefCell<ScopeInner>>);
 
 impl Scope {
     pub fn new() -> Scope {
+        init_scope()
+    }
+
+    pub fn empty() -> Scope {
         Scope(Rc::new(RefCell::new(ScopeInner {
             values: HashMap::new(),
             parent: None,
@@ -82,6 +86,45 @@ impl Scope {
                 None => None,
             },
         }
+    }
+}
+
+pub fn init_scope() -> Scope {
+    let insert_inner_function = |func_map: &mut HashMap<String, Rc<RefCell<EvaledElement>>>, name: &str| {
+        let val_el = element::Element::new(element::get_identifier("value"));
+        let mut bra_el = element::Element::new(element::get_bracket("("));
+        bra_el.childlen.push(val_el);
+        let body_el = element::Element::new(element::Value::InnerFunction(name.to_string()));
+        let mut fun_el = element::Element::new(element::get_symbol("fun"));
+        fun_el.childlen.push(bra_el);
+        fun_el.childlen.push(body_el);
+        func_map.insert(name.to_string(), Rc::new(RefCell::new(
+            EvaledElement{
+                el: fun_el,
+                scope: Some(Scope::empty())
+            }
+        )))
+    };
+
+    let mut functions: HashMap<String, Rc<RefCell<EvaledElement>>> = HashMap::new();
+    insert_inner_function(&mut functions, "print");
+
+    let inner = ScopeInner{
+        values: functions,
+        parent: None,
+    };
+    Scope(Rc::new(RefCell::new(inner)))
+}
+
+fn inner_function(name: &str, el: &EvaledElement, scope: &mut Scope) -> Option<EvaledElement> {
+    match name {
+        "print" => {
+            println!("print innerFunction {:?}", el);
+            let a = scope.get("value");
+            print!("{}", a.el.value.to_string());
+            None
+        }
+        _ => panic!("Internal error."),
     }
 }
 
@@ -244,6 +287,9 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
                 }
                 eval(body, &mut fun_scope)
             })
+        }
+        element::Value::InnerFunction(ref name) => {
+            inner_function(name, element, scope)
         }
         element::Value::Identifier(id) => Some(scope.get(id)),
         x if *x == element::get_bracket("(") => eval(el.childlen.first().unwrap(), scope),

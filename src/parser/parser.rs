@@ -1,12 +1,25 @@
 use super::element;
 
-pub fn line_to_tokens(buffer: &str) -> Vec<String> {
+pub fn line_to_tokens(buffer: &str, str_bracket: &mut char) -> Vec<String> {
     let mut tokens: Vec<String> = vec![];
     let mut token = String::new();
     let mut buffer = buffer.to_string();
     buffer.push('\n');
     for c in buffer.chars() {
-        if c.is_whitespace() {
+        if *str_bracket != '\0' {
+            token.push(c);
+            if c == *str_bracket {
+                *str_bracket = '\0';
+                tokens.push(token.clone());
+                token.clear();
+            } else if c == '\n' {
+                if !token.starts_with("\n") {
+                    token.pop(); // remove last '\n'
+                    tokens.push(token.clone());
+                }
+                token.clear();
+            }
+        } else if c.is_whitespace() {
             if let Some(x) = token.chars().nth(0) {
                 if !x.is_whitespace() {
                     tokens.push(token.clone());
@@ -22,6 +35,10 @@ pub fn line_to_tokens(buffer: &str) -> Vec<String> {
             if c == '#' {
                 // following tokens are comment
                 break;
+            } else if c == '"' {
+                // following tokens are string
+                token.push(c);
+                *str_bracket = '"';
             } else {
                 tokens.push(c.to_string());
                 continue;
@@ -135,10 +152,7 @@ pub fn parse_element(
             if let Some(next) = element::get_element(&tokens[*pos]) {
                 if next.value == element::get_bracket("(") {
                     match parse_element(tokens, pos, "", 0, &end_bracket, true) {
-                        Some(next_el) => {
-                            println!("{}", next_el);
-                            result = element::make_function_call(result, next_el)
-                        }
+                        Some(next_el) => result = element::make_function_call(result, next_el),
                         None => panic!("Invalid syntax"),
                     }
                 }
@@ -172,6 +186,22 @@ pub fn parse_element(
                 }
             }
         }
+        element::Value::String(s) => {
+            let mut value = String::from(s);
+            if !value.starts_with("\"") {
+                panic!("Invalid syntax: not fount '\"'");
+            }
+            while !value.ends_with("\"") && *pos < tokens.len() {
+                *pos += 1;
+                value += tokens[*pos - 1].as_str();
+            }
+            if !value.ends_with("\"") {
+                panic!("Invalid syntax: not fount '\"'");
+            }
+            result = element::Element::new(element::Value::String(
+                value[1..value.len() - 1].to_string(),
+            ))
+        }
         element::Value::FileScope() => {
             let mut next_is_endline = false;
             while let Some(next) = parse_element(tokens, pos, "", 0, &end_bracket, false) {
@@ -190,7 +220,8 @@ pub fn parse_element(
                 }
             }
         }
-        x if *x == element::get_symbol("let") => match parse_element(tokens, pos, "", 1, "", false) {
+        x if *x == element::get_symbol("let") => match parse_element(tokens, pos, "", 1, "", false)
+        {
             Some(next) => match next.value {
                 ref ope if *ope == element::get_operator("=") => {
                     result.childlen = next.childlen;
@@ -226,10 +257,12 @@ pub fn parse_element(
                 }
             }
         }
-        x if *x == element::get_symbol("else") => match parse_element(tokens, pos, "", 1, "", false) {
-            Some(next) => result.childlen.push(next),
-            None => panic!("Invalid syntax: operator 'else' couldn't find next element."),
-        },
+        x if *x == element::get_symbol("else") => {
+            match parse_element(tokens, pos, "", 1, "", false) {
+                Some(next) => result.childlen.push(next),
+                None => panic!("Invalid syntax: operator 'else' couldn't find next element."),
+            }
+        }
         x if *x == element::get_symbol("for") => {
             match parse_element(tokens, pos, "", 1, "", false) {
                 Some(next) => result.childlen.push(next),

@@ -75,6 +75,7 @@ pub fn get_element(token: &str) -> Option<Element> {
                 _ => None,
             }
         }
+        Some('"') => Some(Element::new(Value::String(token.to_string()))),
         Some('\n') => Some(Element::new(Value::EndLine())),
         Some(' ') => {
             let mut count = 0;

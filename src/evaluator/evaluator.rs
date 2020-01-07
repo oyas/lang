@@ -12,13 +12,16 @@ pub struct EvaledElement {
 
 impl EvaledElement {
     pub fn new(el: element::Element) -> EvaledElement {
-        EvaledElement{ el : el, scope : None }
+        EvaledElement {
+            el: el,
+            scope: None,
+        }
     }
 
     pub fn from_value(value: element::Value) -> EvaledElement {
-        EvaledElement{
-            el : element::Element::new(value),
-            scope : None,
+        EvaledElement {
+            el: element::Element::new(value),
+            scope: None,
         }
     }
 }
@@ -90,7 +93,8 @@ impl Scope {
 }
 
 pub fn init_scope() -> Scope {
-    let insert_inner_function = |func_map: &mut HashMap<String, Rc<RefCell<EvaledElement>>>, name: &str| {
+    let insert_inner_function = |func_map: &mut HashMap<String, Rc<RefCell<EvaledElement>>>,
+                                 name: &str| {
         let val_el = element::Element::new(element::get_identifier("value"));
         let mut bra_el = element::Element::new(element::get_bracket("("));
         bra_el.childlen.push(val_el);
@@ -98,31 +102,31 @@ pub fn init_scope() -> Scope {
         let mut fun_el = element::Element::new(element::get_symbol("fun"));
         fun_el.childlen.push(bra_el);
         fun_el.childlen.push(body_el);
-        func_map.insert(name.to_string(), Rc::new(RefCell::new(
-            EvaledElement{
+        func_map.insert(
+            name.to_string(),
+            Rc::new(RefCell::new(EvaledElement {
                 el: fun_el,
-                scope: Some(Scope::empty())
-            }
-        )))
+                scope: Some(Scope::empty()),
+            })),
+        )
     };
 
     let mut functions: HashMap<String, Rc<RefCell<EvaledElement>>> = HashMap::new();
     insert_inner_function(&mut functions, "print");
 
-    let inner = ScopeInner{
+    let inner = ScopeInner {
         values: functions,
         parent: None,
     };
     Scope(Rc::new(RefCell::new(inner)))
 }
 
-fn inner_function(name: &str, el: &EvaledElement, scope: &mut Scope) -> Option<EvaledElement> {
+fn inner_function(name: &str, _el: &EvaledElement, scope: &mut Scope) -> Option<EvaledElement> {
     match name {
         "print" => {
-            println!("print innerFunction {:?}", el);
             let a = scope.get("value");
             print!("{}", a.el.value.to_string());
-            None
+            Some(EvaledElement::from_value(element::Value::None))
         }
         _ => panic!("Internal error."),
     }
@@ -142,7 +146,9 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
      -> Option<EvaledElement> {
         if let [el_l, el_r] = &el.childlen[..] {
             if let (Some(mut l), Some(r)) = (eval(el_l, scope), eval(el_r, scope)) {
-                if let (element::Value::Integer(int_l), element::Value::Integer(int_r)) = (l.el.value.clone(), r.el.value) {
+                if let (element::Value::Integer(int_l), element::Value::Integer(int_r)) =
+                    (l.el.value.clone(), r.el.value)
+                {
                     let result = func(int_l, int_r);
                     l.el.value = element::Value::Integer(result);
                 }
@@ -176,7 +182,9 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
     let ope_let =
         |el: &element::Element, scope: &mut Scope, update: bool| -> Option<EvaledElement> {
             if let [el_l, el_r] = &el.childlen[..] {
-                if let (element::Value::Identifier(id_l), Some(r)) = (el_l.value.clone(), eval(el_r, scope)) {
+                if let (element::Value::Identifier(id_l), Some(r)) =
+                    (el_l.value.clone(), eval(el_r, scope))
+                {
                     if update {
                         scope.get(&id_l);
                     }
@@ -198,7 +206,9 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
             }
             ret
         }
-        element::Value::Integer(_) | element::Value::Boolean(_) => Some(EvaledElement::new(el.clone())),
+        element::Value::Integer(_) | element::Value::Boolean(_) | element::Value::String(_) => {
+            Some(EvaledElement::new(el.clone()))
+        }
         x if *x == element::get_operator("+") => calc(el, scope, |l, r| l + r),
         x if *x == element::get_operator("-") => calc(el, scope, |l, r| l - r),
         x if *x == element::get_operator("*") => calc(el, scope, |l, r| l * r),
@@ -288,9 +298,7 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
                 eval(body, &mut fun_scope)
             })
         }
-        element::Value::InnerFunction(ref name) => {
-            inner_function(name, element, scope)
-        }
+        element::Value::InnerFunction(ref name) => inner_function(name, element, scope),
         element::Value::Identifier(id) => Some(scope.get(id)),
         x if *x == element::get_bracket("(") => eval(el.childlen.first().unwrap(), scope),
         x if *x == element::get_bracket("{") => {
@@ -301,7 +309,7 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
             res
         }
         _ => {
-            panic!("Invalid syntax");
+            panic!("Invalid syntax: eval {}", el);
         }
     }
 }

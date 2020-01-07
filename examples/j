@@ -1,0 +1,11 @@
+# string example
+
+let a = "some string"
+
+print(a)
+
+let b = "some string
+with
+endline"
+
+print(b)

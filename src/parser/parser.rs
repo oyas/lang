@@ -1,25 +1,14 @@
 use super::element;
 
-pub fn line_to_tokens(buffer: &str, str_bracket: &mut char) -> Vec<String> {
+pub fn line_to_tokens(line: &str) -> Vec<String> {
     let mut tokens: Vec<String> = vec![];
     let mut token = String::new();
-    let mut buffer = buffer.to_string();
-    buffer.push('\n');
+    let mut buffer = line.to_string();
+    if !buffer.ends_with('\n') {
+        buffer.push('\n');
+    }
     for c in buffer.chars() {
-        if *str_bracket != '\0' {
-            token.push(c);
-            if c == *str_bracket {
-                *str_bracket = '\0';
-                tokens.push(token.clone());
-                token.clear();
-            } else if c == '\n' {
-                if !token.starts_with("\n") {
-                    token.pop(); // remove last '\n'
-                    tokens.push(token.clone());
-                }
-                token.clear();
-            }
-        } else if c.is_whitespace() {
+        if c.is_whitespace() {
             if let Some(x) = token.chars().nth(0) {
                 if !x.is_whitespace() {
                     tokens.push(token.clone());
@@ -27,22 +16,12 @@ pub fn line_to_tokens(buffer: &str, str_bracket: &mut char) -> Vec<String> {
                 }
             }
             token.push(c);
-        } else if c.is_ascii_punctuation() {
+        } else if c.is_ascii_punctuation() || c == '\n' {
             if !token.is_empty() {
                 tokens.push(token.clone());
                 token.clear();
             }
-            if c == '#' {
-                // following tokens are comment
-                break;
-            } else if c == '"' {
-                // following tokens are string
-                token.push(c);
-                *str_bracket = '"';
-            } else {
-                tokens.push(c.to_string());
-                continue;
-            }
+            tokens.push(c.to_string());
         } else {
             if let Some(x) = token.chars().nth(0) {
                 if x.is_whitespace() {
@@ -53,7 +32,9 @@ pub fn line_to_tokens(buffer: &str, str_bracket: &mut char) -> Vec<String> {
             token.push(c);
         }
     }
-    tokens.push("\n".to_string());
+    if !token.is_empty() {
+        tokens.push(token.clone());
+    }
     tokens
 }
 
@@ -79,7 +60,7 @@ pub fn parse_element(
         element::Element::new(element::Value::FileScope())
     } else {
         // read current token
-        let token = if expect.is_empty() {
+        let token = if expect.is_empty() || tokens[*pos] == "#" {  // '#' is start of comment
             *pos += 1;
             tokens[*pos - 1].to_string()
         } else {
@@ -102,6 +83,13 @@ pub fn parse_element(
             }
             token
         };
+        // skip comment
+        if token == "#" {
+            while *pos < tokens.len() && tokens[*pos] != "\n" {
+                *pos += 1
+            }
+            return parse_element(tokens, pos, expect, limit, &end_bracket, read_one_element);
+        }
         // parse
         if let Some(el) = element::get_element(&token) {
             match el.value {
@@ -191,7 +179,7 @@ pub fn parse_element(
             if !value.starts_with("\"") {
                 panic!("Invalid syntax: not fount '\"'");
             }
-            while !value.ends_with("\"") && *pos < tokens.len() {
+            while !(value.len() > 1 && value.ends_with("\"")) && *pos < tokens.len() {
                 *pos += 1;
                 value += tokens[*pos - 1].as_str();
             }

@@ -12,12 +12,11 @@ mod evaluator;
 fn read_tokens(stream: &mut BufRead) -> Vec<String> {
     let mut tokens: Vec<String> = vec![];
     let mut buffer = String::new();
-    let mut str_bracket = '\0';
     loop {
         match stream.read_line(&mut buffer) {
             Ok(0) => break, // EOF
             Ok(_) => {
-                tokens.append(&mut parser::line_to_tokens(&buffer, &mut str_bracket));
+                tokens.append(&mut parser::line_to_tokens(&buffer));
                 buffer.clear();
             }
             Err(e) => {

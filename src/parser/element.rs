@@ -42,12 +42,14 @@ pub enum Value {
     Scope(),
     Bracket(String), // "(", ")", "{", "}", ...
     EndLine(),       // "\n"
-    FileScope(),     // the top level element
+    FileScope(),     // the file level element
+    EvalScope(),     // the top level element. This have some FileScope
     Type(i64),
     Space(i64), // space or indent. value is count of spaces. But, if include tabs, the value is -1
     FunctionCall(String), // function call
     Comma(),    // ","
     InnerFunction(String),  // for reserved functions
+    Import { path: String },
 }
 
 impl Default for Value {
@@ -186,6 +188,7 @@ lazy_static! {
         m.insert("false".to_string(), Value::Boolean(false));
         m.insert("for".to_string(), Value::Symbol("for".to_string()));
         m.insert("fun".to_string(), Value::Symbol("fun".to_string()));
+        m.insert("import".to_string(), Value::Import {path : "".to_string()});
         m
     };
 }

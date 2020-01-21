@@ -192,22 +192,54 @@ pub fn parse_element(
         }
         element::Value::FileScope() => {
             let mut next_is_endline = false;
+            let mut import_section = true;
             while let Some(next) = parse_element(tokens, pos, "", 0, &end_bracket, false) {
+                // check endline
                 match next.value {
                     element::Value::EndLine() => {
                         next_is_endline = false;
+                        continue
                     }
                     _ => {
                         assert!(
                             !next_is_endline,
                             format!("Invalid syntax: unexpected element {:?}.", next.value)
                         );
-                        result.childlen.push(next);
                         next_is_endline = true;
                     }
                 }
+
+                // check import
+                match next.value {
+                    element::Value::Import {..} => {
+                        assert!(
+                            import_section,
+                            "Invalid syntax: 'import' must exist at top of file."
+                        );
+                    }
+                    element::Value::EndLine() => {}
+                    _ => {
+                        import_section = false;
+                    }
+                }
+
+                result.childlen.push(next);
             }
         }
+        element::Value::Import {..} => match parse_element(tokens, pos, "", 1, "", false)
+        {
+            Some(next) => match next.value {
+                element::Value::String(path) => {
+                    result = element::Element::new(element::Value::Import {path});
+                }
+                _ => {
+                    panic!("Invalid syntax: operator 'import' couldn't find path string.");
+                }
+            },
+            None => {
+                panic!("Invalid syntax: operator 'import' couldn't find path string.");
+            }
+        },
         x if *x == element::get_symbol("let") => match parse_element(tokens, pos, "", 1, "", false)
         {
             Some(next) => match next.value {

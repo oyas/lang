@@ -199,6 +199,20 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
         };
 
     match &el.value {
+        element::Value::EvalScope() => {
+            let mut ret = None;
+            for el in &el.childlen {
+                if let element::Value::Import {..} = el.value {
+                    ret = eval(&el.childlen.first().unwrap(), scope);
+                }
+            }
+            for el in &el.childlen {
+                if let element::Value::FileScope() = el.value {
+                    ret = eval(el, scope);
+                }
+            }
+            ret
+        }
         element::Value::FileScope() => {
             let mut ret = None;
             for el in &el.childlen {
@@ -206,6 +220,7 @@ pub fn eval_inner(element: &EvaledElement, scope: &mut Scope) -> Option<EvaledEl
             }
             ret
         }
+        element::Value::Import {..} => { None }
         element::Value::Integer(_) | element::Value::Boolean(_) | element::Value::String(_) => {
             Some(EvaledElement::new(el.clone()))
         }

@@ -1,0 +1,5 @@
+# 'import' example
+
+import "h"
+
+func1(2)

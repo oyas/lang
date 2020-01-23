@@ -1,43 +1,5 @@
 use super::element;
 
-pub fn line_to_tokens(line: &str) -> Vec<String> {
-    let mut tokens: Vec<String> = vec![];
-    let mut token = String::new();
-    let mut buffer = line.to_string();
-    if !buffer.ends_with('\n') {
-        buffer.push('\n');
-    }
-    for c in buffer.chars() {
-        if c.is_whitespace() {
-            if let Some(x) = token.chars().nth(0) {
-                if !x.is_whitespace() {
-                    tokens.push(token.clone());
-                    token.clear();
-                }
-            }
-            token.push(c);
-        } else if c.is_ascii_punctuation() || c == '\n' {
-            if !token.is_empty() {
-                tokens.push(token.clone());
-                token.clear();
-            }
-            tokens.push(c.to_string());
-        } else {
-            if let Some(x) = token.chars().nth(0) {
-                if x.is_whitespace() {
-                    tokens.push(token.clone());
-                    token.clear();
-                }
-            }
-            token.push(c);
-        }
-    }
-    if !token.is_empty() {
-        tokens.push(token.clone());
-    }
-    tokens
-}
-
 pub fn parse_element(
     tokens: &[String],
     pos: &mut usize,
@@ -60,7 +22,8 @@ pub fn parse_element(
         element::Element::new(element::Value::FileScope())
     } else {
         // read current token
-        let token = if expect.is_empty() || tokens[*pos] == "#" {  // '#' is start of comment
+        let token = if expect.is_empty() || tokens[*pos] == "#" {
+            // '#' is start of comment
             *pos += 1;
             tokens[*pos - 1].to_string()
         } else {
@@ -198,7 +161,7 @@ pub fn parse_element(
                 match next.value {
                     element::Value::EndLine() => {
                         next_is_endline = false;
-                        continue
+                        continue;
                     }
                     _ => {
                         assert!(
@@ -211,7 +174,7 @@ pub fn parse_element(
 
                 // check import
                 match next.value {
-                    element::Value::Import {..} => {
+                    element::Value::Import { .. } => {
                         assert!(
                             import_section,
                             "Invalid syntax: 'import' must exist at top of file."
@@ -226,11 +189,10 @@ pub fn parse_element(
                 result.childlen.push(next);
             }
         }
-        element::Value::Import {..} => match parse_element(tokens, pos, "", 1, "", false)
-        {
+        element::Value::Import { .. } => match parse_element(tokens, pos, "", 1, "", false) {
             Some(next) => match next.value {
                 element::Value::String(path) => {
-                    result = element::Element::new(element::Value::Import {path});
+                    result = element::Element::new(element::Value::Import { path });
                 }
                 _ => {
                     panic!("Invalid syntax: operator 'import' couldn't find path string.");
@@ -319,26 +281,19 @@ pub fn parse_element(
 
     // check if the next token is operator
     if !read_one_element {
-        loop {
-            if *pos >= tokens.len() {
+        while let Some(element::Element {
+            value: element::Value::Operator(ope, priority),
+            ..
+        }) = element::get_next_operator(tokens, *pos)
+        {
+            if priority < limit {
+                // check priority of operator
                 break;
-            } else if let Some(next_element) = element::get_next_operator(tokens, *pos) {
-                if let element::Value::Operator(ope, priority) = next_element.value {
-                    if priority < limit {
-                        // check priority of operator
-                        break;
-                    }
-                    match parse_element(tokens, pos, &ope, priority, &end_bracket, false) {
-                        Some(next) => {
-                            result = reorder_elelemnt(tokens, pos, result, next, &end_bracket)
-                        }
-                        None => panic!("Invalid syntax"),
-                    }
-                } else {
-                    break;
-                }
+            }
+            if let Some(next) = parse_element(tokens, pos, &ope, priority, &end_bracket, false) {
+                result = reorder_elelemnt(tokens, pos, result, next, &end_bracket)
             } else {
-                break;
+                panic!("Invalid syntax")
             }
         }
     }

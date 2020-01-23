@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
+use std::collections::HashSet;
 use std::fs::File;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Stdin;
-use std::collections::HashSet;
 use std::path::Path;
 
-mod parser;
 mod evaluator;
+mod parser;
 
 fn read_tokens(stream: &mut dyn BufRead) -> Vec<String> {
     let mut tokens: Vec<String> = vec![];
@@ -44,15 +44,19 @@ fn read_rawfile(file_name: &str) -> Vec<String> {
     }
 }
 
-pub fn read(tokens: &[String], current_dir: &Path, ignore_imports: &HashSet<String>) -> Option<parser::element::Element> {
+pub fn read(
+    tokens: &[String],
+    current_dir: &Path,
+    ignore_imports: &HashSet<String>,
+) -> Option<parser::element::Element> {
     let mut ignore_imports = ignore_imports.clone();
     let mut eval_el = parser::element::Element::new(parser::element::Value::EvalScope());
     let el = parser::parse_element(tokens, &mut 0, "", -1, "", false);
     if let Some(el) = &el {
         for cl in &el.childlen {
-            if let parser::element::Value::Import {path} = &cl.value {
+            if let parser::element::Value::Import { path } = &cl.value {
                 if ignore_imports.contains(path) {
-                    continue
+                    continue;
                 }
                 ignore_imports.insert(path.clone());
                 let file_name = current_dir.join(path);
@@ -60,7 +64,7 @@ pub fn read(tokens: &[String], current_dir: &Path, ignore_imports: &HashSet<Stri
                 if let Some(file_el) = read(&tokens, current_dir, &ignore_imports) {
                     for child_el in file_el.childlen {
                         match &child_el.value {
-                            parser::element::Value::Import {path} => {
+                            parser::element::Value::Import { path } => {
                                 ignore_imports.insert(path.clone());
                                 eval_el.childlen.push(child_el);
                             }

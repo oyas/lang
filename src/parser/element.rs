@@ -48,7 +48,7 @@ pub enum Value {
     Space(i64), // space or indent. value is count of spaces. But, if include tabs, the value is -1
     FunctionCall(String), // function call
     Comma(),    // ","
-    InnerFunction(String),  // for reserved functions
+    InnerFunction(String), // for reserved functions
     Import { path: String },
 }
 

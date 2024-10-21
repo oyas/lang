@@ -6,21 +6,21 @@ use crate::backend::llvm::CodeGen;
 
 
 fn hello_world(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
+    let module = codegen.get_main_module();
     let i32_type = codegen.context.i32_type();
     let fn_type = i32_type.fn_type(&[], false);
-    let function = codegen.module.add_function("main", fn_type, None);
+    let function = module.add_function("main", fn_type, None);
     let basic_block = codegen.context.append_basic_block(function, "entry");
 
     codegen.builder.position_at_end(basic_block);
 
     // declare i32 @putchar(i32)
     let putchar_type = i32_type.fn_type(&[i32_type.into()], false);
-    codegen.module.add_function("putchar", putchar_type, None);
+    let fun = module.add_function("putchar", putchar_type, None);
 
     // print "Hi"
-    let fun = codegen.module.get_function("putchar");
-    codegen.builder.build_call(fun.unwrap(), &[i32_type.const_int(72, false).into()], "putchar");
-    codegen.builder.build_call(fun.unwrap(), &[i32_type.const_int(105, false).into()], "putchar");
+    codegen.builder.build_call(fun, &[i32_type.const_int(72, false).into()], "putchar");
+    codegen.builder.build_call(fun, &[i32_type.const_int(105, false).into()], "putchar");
 
     // return value
     let value = &i32_type.const_int(42, false);
@@ -44,16 +44,6 @@ mod tests {
 
         hello_world(&codegen).unwrap();
 
-        // default target
-        target::run_passes_on(&codegen.module, target::Triple::Default);
-        let objects = target::write_to_file(&codegen.module, target::Triple::Default, "main");
-        link::link(&objects).unwrap();
-
-        // wasm32 target
-        // target::run_passes_on(&codegen.module, target::Triple::WASM32);
-        // let objects = target::write_to_file(&codegen.module, target::Triple::WASM32, "main");
-        // link::link(&objects).unwrap();
-
         // JIT
         type MainFunc = unsafe extern "C" fn() -> i32;
         unsafe {
@@ -61,5 +51,11 @@ mod tests {
             let result = main.call();
             println!("result = {:?}", result);
         };
+
+        // default target
+        codegen.compile().unwrap();
+
+        // wasm32 target
+        codegen.compile_with_target(&target::Triple::Wasm32WasiLibc).unwrap();
     }
 }

@@ -6,15 +6,16 @@ use crate::backend::llvm::CodeGen;
 
 
 fn loop_example(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
+    let module = codegen.get_main_module();
     let i32_type = codegen.context.i32_type();
     let fn_type = i32_type.fn_type(&[], false);
-    let main_function = codegen.module.add_function("main", fn_type, None);
+    let main_function = module.add_function("main", fn_type, None);
     let entry_block = codegen.context.append_basic_block(main_function, "entry");
     let zero = i32_type.const_int(0, false);
 
     // declare i32 @putchar(i32)
     let putchar_type = i32_type.fn_type(&[i32_type.into()], false);
-    let fun = codegen.module.add_function("putchar", putchar_type, None);
+    let fun = module.add_function("putchar", putchar_type, None);
 
     // blocks
     let loop_block = codegen.context.append_basic_block(main_function, "loop");
@@ -80,7 +81,7 @@ mod tests {
 
         // show ll
         println!("----- Generated LLVM IR -----");
-        println!("{}", codegen.module.to_string());
+        println!("{}", codegen.get_main_module().to_string());
         println!("----- End of LLVM IR -----");
 
         // JIT

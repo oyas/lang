@@ -76,9 +76,10 @@ pub fn compile() -> Result<(), Box<dyn Error>> {
     // let sum = codegen.jit_compile_sum().ok_or("Unable to JIT compile `sum`")?;
     let sum = codegen.jit_compile_sum();
 
-    target::run_passes_on(&codegen.module, target::Triple::Default);
-    let objects = target::write_to_file(&codegen.module, target::Triple::Default, "main");
-    link::link(&objects).unwrap();
+    let target_triple = target::Triple::Default;
+    target::run_passes_on(&codegen.module, &target_triple);
+    let objects = target::write_to_file(&codegen.module, &target_triple, "main");
+    link::link(&objects, &target_triple).unwrap();
 
     let x = 1u64;
     let y = 2u64;

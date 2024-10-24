@@ -81,6 +81,16 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    pub fn run_jit_eval_function(&self, fn_name: &str) -> String {
+        type FuncType = unsafe extern "C" fn() -> *const u8;
+        unsafe {
+            let f: JitFunction<FuncType> = self.execution_engine.get_function(fn_name).unwrap();
+            let result = f.call();
+            let c_str = std::ffi::CStr::from_ptr(result as *const i8);
+            String::from(c_str.to_str().unwrap())
+        }
+    }
+
     fn wasm_start_module(&self) -> Module<'ctx> {
         // _start function for wasm
         let module = self.context.create_module("_start");

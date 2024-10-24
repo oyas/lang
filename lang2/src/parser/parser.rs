@@ -26,8 +26,8 @@ pub fn parse(input: &str) -> SIResult<Vec<IndentedStatement>> {
 
 #[derive(Debug, PartialEq)]
 pub struct IndentedStatement(
-    usize,
-    Statement,
+    pub usize,
+    pub Statement,
 );
 
 #[derive(Debug, PartialEq)]
@@ -84,7 +84,8 @@ pub fn parse_expr(input: &str) -> SIResult<Expression> {
                 parse_term,
                 many0(alt((
                     parse_add,            // expr + expr
-                    parse_multiplication, // expr * expr
+                    // parse_multiplication, // expr * expr
+                    parse_mul, // expr * expr
                 )))
             )),
             |(l, r)| reorder(l, r),
@@ -97,14 +98,15 @@ pub fn parse_expr(input: &str) -> SIResult<Expression> {
 pub fn reorder(init: Expression, v: Vec<Expression>) -> Expression {
     let mut l = init;
     for e in v {
-        match e {
-            Expression::Add(_, r) => {
-                l = Expression::Add(Box::new(l), r)
-            },
-            _ => {
-                panic!("not implemented for reorder! {:?}", e)
-            }
-        };
+        l = l.reorder(e);
+        // match e {
+        //     Expression::Add(_, r) => {
+        //         l = Expression::Add(Box::new(l), r)
+        //     },
+        //     _ => {
+        //         panic!("not implemented for reorder! {:?}", e)
+        //     }
+        // };
     }
     l
 }
@@ -113,12 +115,19 @@ pub fn parse_term(input: &str) -> SIResult<Expression> {
     terminated(alt((
         map(complete::i64, |i| Expression::I64(i)),
         parse_parentheses,    // ( expr )
+        parse_identifier,    // alpha numeric string
     )), space0)(input)
 }
 
 pub fn parse_parentheses(input: &str) -> SIResult<Expression> {
     map(delimited(terminated(char('('), space0), parse_expr, char(')')), |expr| {
         Expression::Parentheses(Box::new(expr))
+    })(input)
+}
+
+pub fn parse_identifier(input: &str) -> SIResult<Expression> {
+    map(complete::alphanumeric1, |id| {
+        Expression::Identifier(String::from(id))
     })(input)
 }
 
@@ -151,15 +160,19 @@ pub fn parse_add(input: &str) -> SIResult<Expression> {
     // )), |(op, t)| Expression::Add(Box::new(Expression::None()), Box::new(t)))(input)
 }
 
-pub fn parse_multiplication(input: &str) -> SIResult<Expression> {
-    // bin_op(
-    //     "*",
-    //     |l, r| Expression::Multiplication(l, r)
-    // )(input)
-    map(tuple((parse_expr, char('*'), parse_expr)), |(l, op, r)| {
-        Expression::Multiplication(Box::new(l), Box::new(r))
-    })(input)
+pub fn parse_mul(input: &str) -> SIResult<Expression> {
+    bin_op("*", Expression::Mul)(input)
 }
+
+// pub fn parse_multiplication(input: &str) -> SIResult<Expression> {
+//     // bin_op(
+//     //     "*",
+//     //     |l, r| Expression::Multiplication(l, r)
+//     // )(input)
+//     map(tuple((parse_expr, char('*'), parse_expr)), |(l, op, r)| {
+//         Expression::Mul(Box::new(l), Box::new(r))
+//     })(input)
+// }
 
 
 #[cfg(test)]
@@ -181,7 +194,7 @@ mod tests {
     fn test() {
         // unsafe { backtrace_on_stack_overflow::enable() };
         // let input = "  \nlet\nabc";
-        let input = "\n10 + 1 \n + 2 \n 1 + a2\n\n";
+        let input = "\n10 + 1 \n + (2) \n 1 + a2\n\n";
         println!("input = {}", input);
         let result = parse(input).finish();
         println!("result = {:?}", result);

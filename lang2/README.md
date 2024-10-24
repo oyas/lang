@@ -1,6 +1,6 @@
 # lang2
 
-## install
+## Install
 
 ### wasmtime
 ```
@@ -42,4 +42,13 @@ wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-
 tar xvf wasi-sdk-24.0-x86_64-linux.tar.gz
 cd ..
 export WASI_SDK_PATH=./misc/wasi-sdk-24.0-x86_64-linux
+```
+
+## Test
+
+```
+cargo test -- --test-threads=1
+```
+```
+cargo test backend::llvm::inkwell_example::hello_world -- --nocapture
 ```

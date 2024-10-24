@@ -6,9 +6,10 @@ pub enum Expression {
     None(),
     Identifier(String),
     I64(i64),
-    Add(Box<Expression>, Box<Expression>),
-    Multiplication(Box<Expression>, Box<Expression>),
-    Parentheses(Box<Expression>),
+    Add(Box<Expression>, Box<Expression>),  // +
+    Sub(Box<Expression>, Box<Expression>),  // -
+    Mul(Box<Expression>, Box<Expression>),  // *
+    Parentheses(Box<Expression>),  // ()
 }
 
 impl Expression {
@@ -19,7 +20,8 @@ impl Expression {
             Self::Identifier(_) => 0,
             Self::I64(_) => 0,
             Self::Add(_, _) => -50,
-            Self::Multiplication(_, _) => -20,
+            Self::Sub(_, _) => -50,
+            Self::Mul(_, _) => -20,
             Self::Parentheses(_) => 0,
         }
     }
@@ -27,7 +29,8 @@ impl Expression {
     fn children(&self) -> Vec<&Box<Expression>> {
         match self {
             Self::Add(a, b) => vec![a, b],
-            Self::Multiplication(a, b) => vec![a, b],
+            Self::Sub(a, b) => vec![a, b],
+            Self::Mul(a, b) => vec![a, b],
             Self::Parentheses(a) => vec![a],
             _ => vec![],
         }
@@ -37,19 +40,21 @@ impl Expression {
         let l = Box::new(l);
         match self {
             Self::Add(_a, b) => Self::Add(l, b),
-            Self::Multiplication(_a, b) => Self::Multiplication(l, b),
+            Self::Sub(_a, b) => Self::Sub(l, b),
+            Self::Mul(_a, b) => Self::Mul(l, b),
             Self::Parentheses(_a) => Self::Parentheses(l),
             _ => panic!("This does not have children."),
         }
     }
 
-    fn reorder(self, r: Expression) -> Self {
+    pub fn reorder(self, r: Expression) -> Self {
         if self.priority() >= r.priority() {
             return r.replace_first_child(self)
         }
         match self {
             Self::Add(a, b) => Self::Add(a, Box::new(b.reorder(r))),
-            Self::Multiplication(a, b) => Self::Multiplication(a, Box::new(b.reorder(r))),
+            Self::Sub(a, b) => Self::Sub(a, Box::new(b.reorder(r))),
+            Self::Mul(a, b) => Self::Mul(a, Box::new(b.reorder(r))),
             _ => panic!("This is not operator."),
         }
     }
@@ -81,7 +86,7 @@ mod tests {
             Box::new(Expression::None()),
             Box::new(Expression::None()),
         );
-        let b = Expression::Multiplication(
+        let b = Expression::Mul(
             Box::new(Expression::Resolving()),
             Box::new(Expression::None()),
         );
@@ -90,7 +95,7 @@ mod tests {
         println!("{:?}", c);
         assert_eq!(c, Expression::Add(
             Box::new(Expression::None()),
-            Box::new(Expression::Multiplication(
+            Box::new(Expression::Mul(
                 Box::new(Expression::None()),
                 Box::new(Expression::None()),
             )),

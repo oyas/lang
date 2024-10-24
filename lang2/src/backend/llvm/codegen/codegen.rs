@@ -53,9 +53,9 @@ impl<'ctx> CodeGen<'ctx> {
         let mut objects = Vec::new();
         for module in &self.modules {
             let name = module.get_name().to_str().unwrap();
-            println!("----- Generated LLVM IR of {} -----", name);
-            println!("{}", module.to_string());
-            println!("----- End of LLVM IR of {} -----", name);
+            // println!("----- Generated LLVM IR of {} -----", name);
+            // println!("{}", module.to_string());
+            // println!("----- End of LLVM IR of {} -----", name);
             target::run_passes_on(&self.get_main_module(), target_triple);
             objects.append(&mut target::write_to_file(module, target_triple, name));
         }

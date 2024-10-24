@@ -54,10 +54,10 @@ pub fn link(objects: &Vec<String>, target_triple: &Triple) -> Result<PathBuf, io
         .output()?;
 
     println!("link executed: {}", output.status);
-    io::stdout().write_all(&output.stdout).unwrap();
-    println!("----- link stderr -----");
-    io::stderr().write_all(&output.stderr).unwrap();
-    println!("----- End of link stderr -----");
+    // io::stdout().write_all(&output.stdout).unwrap();
+    // println!("----- link stderr -----");
+    // io::stderr().write_all(&output.stderr).unwrap();
+    // println!("----- End of link stderr -----");
     if !output.status.success() {
         panic!("link failed. status = {:?}", output.status.code());
         // anyhow::bail!("{}", String::from_utf8_lossy(&process.stderr));

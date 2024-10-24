@@ -1,5 +1,17 @@
 # lang2
 
+### Compile source code
+
+```
+cargo run example/a
+./build/main.out
+```
+
+### Run REPL
+```
+cargo run
+```
+
 ## Install
 
 ### wasmtime

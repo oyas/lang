@@ -7,6 +7,7 @@ use crate::backend::llvm::CodeGen;
 
 fn getelementptr(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
     let module = codegen.get_main_module();
+    let ptr_type = codegen.context.ptr_type(AddressSpace::default());
     let i32_type = codegen.context.i32_type();
     let fn_type = i32_type.fn_type(&[], false);
     let main_function = module.add_function("main", fn_type, None);
@@ -46,11 +47,10 @@ fn getelementptr(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
     // alloca2
     codegen.builder.position_at_end(alloca2_block);
     let ptr = codegen.builder.build_alloca(i32_type, "ptr").unwrap();
-    let i32_ptr_type = i32_type.ptr_type(AddressSpace::default());
-    let ptr_ptr = codegen.builder.build_alloca(i32_ptr_type, "ptr_ptr").unwrap();
+    let ptr_ptr = codegen.builder.build_alloca(ptr_type, "ptr_ptr").unwrap();
     codegen.builder.build_store(ptr, i32_type.const_int(41, false));
     codegen.builder.build_store(ptr_ptr, ptr);
-    let loaded_ptr = codegen.builder.build_load(i32_ptr_type, ptr_ptr, "loaded_ptr").unwrap().into_pointer_value();
+    let loaded_ptr = codegen.builder.build_load(ptr_type, ptr_ptr, "loaded_ptr").unwrap().into_pointer_value();
     let value = codegen.builder.build_load(i32_type, loaded_ptr, "value").unwrap().into_int_value();
     codegen.builder.build_return(Some(&value)).unwrap();
 
@@ -89,7 +89,6 @@ fn getelementptr(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
     codegen.builder.position_at_end(struct_block);
     let field_types = &[i32_type.into(), i32_type.into()];
     let struct_ty = codegen.context.struct_type(field_types, false);
-    let struct_ptr_ty = struct_ty.ptr_type(AddressSpace::default());
     let s = codegen.builder.build_alloca(struct_ty, "s").unwrap();
     let elem_ptr = codegen.builder.build_struct_gep(struct_ty, s, 1, "elem_ptr").unwrap();
     codegen.builder.build_store(elem_ptr, i32_type.const_int(60, false));

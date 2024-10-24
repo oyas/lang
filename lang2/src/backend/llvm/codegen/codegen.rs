@@ -1,4 +1,5 @@
 use std::{collections::HashMap, error::Error, rc::Weak, sync::Arc};
+use std::fs;
 
 use inkwell::{builder::Builder, context::Context, execution_engine::{ExecutionEngine, JitFunction}, module::Module, OptimizationLevel};
 
@@ -50,6 +51,10 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn compile_with_target(&self, target_triple: &Triple) -> Result<(), Box<dyn Error>> {
+        // Prepare build dir
+        fs::create_dir_all("build").unwrap();
+
+        // Write object files
         let mut objects = Vec::new();
         for module in &self.modules {
             let name = module.get_name().to_str().unwrap();
@@ -68,6 +73,8 @@ impl<'ctx> CodeGen<'ctx> {
             _ => (),
         };
         println!("objects = {:?}", objects);
+
+        // Link
         link::link(&objects, target_triple).unwrap();
 
         Ok(())

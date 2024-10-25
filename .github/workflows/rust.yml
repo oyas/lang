@@ -8,8 +8,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    - uses: actions/checkout@v4
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: false
+        tags: "test"
+        # target: test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

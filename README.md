@@ -31,7 +31,7 @@ cargo install wasm-tools
 
 #### wasm -> wat
 ```
-wasm-tools print build/main.wasm
+wasm-tools print build/main.wasm -o a.wat
 ```
 
 #### wat -> wasm

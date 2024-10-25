@@ -13,6 +13,10 @@ RUN mkdir -p /opt/wasi-sdk \
     && cd .. \
     && echo "export WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-24.0-x86_64-linux" >> /etc/profile.d/wasi-sdk.sh
 
+RUN curl https://wasmtime.dev/install.sh -sSf | bash
+
+RUN cargo install --locked wasm-tools
+
 ENV WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-24.0-x86_64-linux
 
 WORKDIR /mnt

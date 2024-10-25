@@ -64,3 +64,22 @@ cargo test -- --test-threads=1
 ```
 cargo test backend::llvm::inkwell_example::hello_world -- --nocapture
 ```
+
+## Docker
+
+### Development
+```
+docker build . -t lang2-dev --target dev
+docker run --rm -it -v .:/mnt lang2-dev
+```
+
+### Run test
+```
+docker build . -t lang2 --target test
+```
+
+### REPL
+```
+docker build . -t lang2 --target run
+docker run --rm -it lang2
+```

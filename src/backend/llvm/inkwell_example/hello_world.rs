@@ -16,7 +16,7 @@ fn hello_world(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
 
     // declare i32 @putchar(i32)
     let putchar_type = i32_type.fn_type(&[i32_type.into()], false);
-    let fun = module.add_function("putchar", putchar_type, None);
+    let fun = module.add_function("putchar1", putchar_type, None);
 
     // print "Hi"
     codegen.builder.build_call(fun, &[i32_type.const_int(72, false).into()], "putchar");

@@ -9,6 +9,7 @@ pub enum Expression {
     Add(Box<Expression>, Box<Expression>),  // +
     Sub(Box<Expression>, Box<Expression>),  // -
     Mul(Box<Expression>, Box<Expression>),  // *
+    Div(Box<Expression>, Box<Expression>),  // /
     Parentheses(Box<Expression>),  // ()
 }
 
@@ -22,6 +23,7 @@ impl Expression {
             Self::Add(_, _) => -50,
             Self::Sub(_, _) => -50,
             Self::Mul(_, _) => -20,
+            Self::Div(_, _) => -20,
             Self::Parentheses(_) => 0,
         }
     }
@@ -31,6 +33,7 @@ impl Expression {
             Self::Add(a, b) => vec![a, b],
             Self::Sub(a, b) => vec![a, b],
             Self::Mul(a, b) => vec![a, b],
+            Self::Div(a, b) => vec![a, b],
             Self::Parentheses(a) => vec![a],
             _ => vec![],
         }
@@ -42,6 +45,7 @@ impl Expression {
             Self::Add(_a, b) => Self::Add(l, b),
             Self::Sub(_a, b) => Self::Sub(l, b),
             Self::Mul(_a, b) => Self::Mul(l, b),
+            Self::Div(_a, b) => Self::Div(l, b),
             Self::Parentheses(_a) => Self::Parentheses(l),
             _ => panic!("This does not have children."),
         }
@@ -55,6 +59,7 @@ impl Expression {
             Self::Add(a, b) => Self::Add(a, Box::new(b.reorder(r))),
             Self::Sub(a, b) => Self::Sub(a, Box::new(b.reorder(r))),
             Self::Mul(a, b) => Self::Mul(a, Box::new(b.reorder(r))),
+            Self::Div(a, b) => Self::Div(a, Box::new(b.reorder(r))),
             _ => panic!("This is not operator."),
         }
     }

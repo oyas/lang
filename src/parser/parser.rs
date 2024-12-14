@@ -84,8 +84,10 @@ pub fn parse_expr(input: &str) -> SIResult<Expression> {
                 parse_term,
                 many0(alt((
                     parse_add,            // expr + expr
+                    parse_sub,            // expr - expr
                     // parse_multiplication, // expr * expr
                     parse_mul, // expr * expr
+                    parse_div, // expr / expr
                 )))
             )),
             |(l, r)| reorder(l, r),
@@ -134,7 +136,7 @@ pub fn parse_identifier(input: &str) -> SIResult<Expression> {
 pub fn bin_op<'a>(
     op: &'a str,
     f: impl 'a + Fn(Box<Expression>, Box<Expression>) -> Expression,
-) -> impl FnMut(&'a str) -> SIResult<Expression> {
+) -> impl FnMut(&'a str) -> SIResult<'a, Expression> {
     map(
         tuple((
             delimited(
@@ -160,8 +162,16 @@ pub fn parse_add(input: &str) -> SIResult<Expression> {
     // )), |(op, t)| Expression::Add(Box::new(Expression::None()), Box::new(t)))(input)
 }
 
+pub fn parse_sub(input: &str) -> SIResult<Expression> {
+    bin_op("-", Expression::Sub)(input)
+}
+
 pub fn parse_mul(input: &str) -> SIResult<Expression> {
     bin_op("*", Expression::Mul)(input)
+}
+
+pub fn parse_div(input: &str) -> SIResult<Expression> {
+    bin_op("/", Expression::Div)(input)
 }
 
 // pub fn parse_multiplication(input: &str) -> SIResult<Expression> {

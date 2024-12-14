@@ -34,19 +34,24 @@ pub fn build_expression<'a>(codegen: &CodeGen<'a>, expr: &Expression) -> Result<
             i32_type.const_int(*a as u64, false)
         },
         Expression::Add(a, b) => {
-            // let Expression::I64(ai) = **a else { panic!("'a' is not i64.") };
-            // let Expression::I64(bi) = **b else { panic!("'b' is not i64.") };
-            // let i32_type = codegen.context.i32_type();
-            // let lhs = i32_type.const_int(ai as u64, false);
-            // let rhs = i32_type.const_int(bi as u64, false);
             let lhs = build_expression(codegen, a).unwrap();
             let rhs = build_expression(codegen, b).unwrap();
             codegen.builder.build_int_add(lhs, rhs, "add").unwrap()
+        },
+        Expression::Sub(a, b) => {
+            let lhs = build_expression(codegen, a).unwrap();
+            let rhs = build_expression(codegen, b).unwrap();
+            codegen.builder.build_int_sub(lhs, rhs, "sub").unwrap()
         },
         Expression::Mul(a, b) => {
             let lhs = build_expression(codegen, a).unwrap();
             let rhs = build_expression(codegen, b).unwrap();
             codegen.builder.build_int_mul(lhs, rhs, "mul").unwrap()
+        },
+        Expression::Div(a, b) => {
+            let lhs = build_expression(codegen, a).unwrap();
+            let rhs = build_expression(codegen, b).unwrap();
+            codegen.builder.build_int_signed_div(lhs, rhs, "div").unwrap()
         },
         Expression::Parentheses(a) => build_expression(codegen, a).unwrap(),
         _ => {

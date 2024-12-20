@@ -4,8 +4,10 @@ use inkwell::{context::Context, values::{BasicValue, BasicValueEnum, PointerValu
 
 use crate::{backend::llvm::{codegen, CodeGen}, parser::{self, IndentedStatement, Statement}};
 
+use super::Options;
 
-pub fn repl() {
+
+pub fn repl(options: &Options) {
     let context = Context::create();
     let mut codegen = setup(&context);
     loop {
@@ -17,20 +19,22 @@ pub fn repl() {
             println!("quit");
             break;
         }
-        let ret = match parser::parse(&s) {
+        let ast = match parser::parse(&s) {
             Ok((_, r)) => r,
             Err(e) => {
                 println!("parse error! {:?}", e);
                 continue;
             }
         };
-        println!("parsed: {:?}", ret);
-        let result = eval(&mut codegen, &ret);
+        if options.emit_ast {
+            println!("parsed: {:?}", ast);
+        }
+        let result = eval(&mut codegen, &ast, options);
         println!("{}", result);
     }
 }
 
-pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>) -> String {
+pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options: &Options) -> String {
     // setup eval function
     let num = codegen.modules.len();
     let module_name = format!("eval_{}", num);
@@ -75,10 +79,11 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>) -> Stri
 
     codegen.builder.build_return(Some(global_output_ptr)).unwrap();
 
-    // debug
-    // println!("----- Generated LLVM IR -----");
-    // println!("{}", module.to_string());
-    // println!("----- End of LLVM IR -----");
+    if options.emit_llvm_ir {
+        println!("----- Generated LLVM IR -----");
+        println!("{}", module.to_string());
+        println!("----- End of LLVM IR -----");
+    }
 
     // execute
     // println!("fn_name: {}", fn_name);

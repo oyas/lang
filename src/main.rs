@@ -5,6 +5,8 @@ mod compiler;
 
 use std::env;
 
+use compiler::Options;
+
 fn main() {
     // println!("Hello, world!");
     // let ret = backend::llvm::compile();
@@ -16,15 +18,18 @@ fn main() {
         None => "",
     };
 
-    // let show_log = args.contains(&String::from("-v"));
+    let options = Options {
+        emit_llvm_ir: args.contains(&String::from("--emit-llvm-ir")),
+        emit_ast: args.contains(&String::from("--emit-ast")),
+    };
 
     if !file_name.is_empty() {
         println!("compile {}", file_name);
-        compiler::compile(&file_name);
+        compiler::compile(&file_name, &options);
         return;
     }
 
-    compiler::repl();
+    compiler::repl(&options);
 }
 
 #[cfg(test)]

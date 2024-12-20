@@ -6,7 +6,12 @@ use crate::parser::{self};
 
 use super::repl;
 
-pub fn compile(file_name: &str) {
+pub struct Options {
+    pub emit_llvm_ir: bool,
+    pub emit_ast: bool,
+}
+
+pub fn compile(file_name: &str, options: &Options) {
     let mut buf_reader = match File::open(file_name) {
         Ok(file) => BufReader::new(file),
         Err(e) => panic!("Error occurred while reading {}: {}", file_name, e),
@@ -20,14 +25,17 @@ pub fn compile(file_name: &str) {
         match buf_reader.read_line(&mut buffer) {
             Ok(0) => break, // EOF
             Ok(_) => {
-                let ret = match parser::parse(&buffer) {
+                let ast = match parser::parse(&buffer) {
                     Ok((_, r)) => r,
                     Err(e) => {
                         println!("parse error! {:?}", e);
                         continue;
                     }
                 };
-                let result = repl::eval(&mut codegen, &ret);
+                if options.emit_ast {
+                    println!("parsed: {:?}", ast);
+                }
+                let result = repl::eval(&mut codegen, &ast, options);
                 println!("{}", result);
                 buffer.clear();
             }
@@ -63,9 +71,12 @@ pub fn compile(file_name: &str) {
     //     "printf_call"
     // ).unwrap();
     codegen.builder.build_return(Some(&zero)).unwrap();
-    // println!("----- Generated LLVM IR -----");
-    // println!("{}", module.to_string());
-    // println!("----- End of LLVM IR -----");
+
+    if options.emit_llvm_ir {
+        println!("----- Generated LLVM IR -----");
+        println!("{}", module.to_string());
+        println!("----- End of LLVM IR -----");
+    }
 
     codegen.compile().unwrap();
 }

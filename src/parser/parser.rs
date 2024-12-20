@@ -33,6 +33,7 @@ pub struct IndentedStatement(
 #[derive(Debug, PartialEq)]
 pub enum Statement{
     Let(Expression),
+    Assign(Expression),
     Expr(Expression),
 }
 
@@ -72,12 +73,30 @@ pub fn end_of_line_or_file(input: &str) -> SIResult<(&str, &str)> {
 
 pub fn parse_statement(input: &str) -> SIResult<Statement> {
     alt((
-        map(
-            tuple((keyword("let"), parse_expr, keyword("="), parse_expr)),
-            |(_, l, _, r)| Statement::Let(Expression::Let(Box::new(l), Box::new(r)))
-        ),
+        map(parse_let, |expr| Statement::Let(expr)),
+        map(parse_assign, |expr| Statement::Assign(expr)),
         map(parse_expr, |expr| Statement::Expr(expr)),
     ))(input)
+}
+
+pub fn parse_let(input: &str) -> SIResult<Expression> {
+    map(
+        tuple((keyword("let"), parse_expr, keyword("="), parse_expr)),
+        |(_, l, _, r)| Expression::Let(Box::new(l), Box::new(r))
+    )(input)
+}
+
+pub fn parse_assign(input: &str) -> SIResult<Expression> {
+    terminated(
+        map(
+            tuple((
+                parse_term,
+                bin_op("=", Expression::Assign),
+            )),
+            |(l, r)| l.reorder(r),
+        ),
+        space0,
+    )(input)
 }
 
 pub fn parse_expr(input: &str) -> SIResult<Expression> {

@@ -51,6 +51,7 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options
     for IndentedStatement(_i, s) in ast {
         last_int_value = match s {
             Statement::Let(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
+            Statement::Assign(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             Statement::Expr(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             //_ => panic!("Not implement! (eval)"),
         };

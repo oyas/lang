@@ -61,6 +61,20 @@ pub fn build_expression<'a>(codegen: &CodeGen<'a>, expr: &Expression) -> Result<
             let Expression::Identifier(ref l) = **a else {
                 panic!("Cannot assign to non-identifier.")
             };
+            if codegen.values.borrow().contains_key(l) {
+                panic!("Variable already exists.")
+            }
+            let r = build_expression(codegen, b).unwrap();
+            codegen.values.borrow_mut().insert(l.clone(), r.as_basic_value_enum());
+            codegen.context.i32_type().const_zero()
+        },
+        Expression::Assign(a, b) => {
+            let Expression::Identifier(ref l) = **a else {
+                panic!("Cannot assign to non-identifier.")
+            };
+            if !codegen.values.borrow().contains_key(l) {
+                panic!("Variable does not exist.")
+            }
             let r = build_expression(codegen, b).unwrap();
             codegen.values.borrow_mut().insert(l.clone(), r.as_basic_value_enum());
             codegen.context.i32_type().const_zero()

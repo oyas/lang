@@ -53,6 +53,7 @@ impl Expression {
             Self::Mul(_a, b) => Self::Mul(l, b),
             Self::Div(_a, b) => Self::Div(l, b),
             Self::Parentheses(_a) => Self::Parentheses(l),
+            Self::Assign(_a, b) => Self::Assign(l, b),
             _ => panic!("This does not have children."),
         }
     }
@@ -66,6 +67,8 @@ impl Expression {
             Self::Sub(a, b) => Self::Sub(a, Box::new(b.reorder(r))),
             Self::Mul(a, b) => Self::Mul(a, Box::new(b.reorder(r))),
             Self::Div(a, b) => Self::Div(a, Box::new(b.reorder(r))),
+            Self::Let(a, b) => Self::Let(a, Box::new(b.reorder(r))),
+            Self::Assign(a, b) => Self::Assign(a, Box::new(b.reorder(r))),
             _ => panic!("This is not operator."),
         }
     }

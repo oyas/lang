@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::{collections::HashMap, error::Error, rc::Weak, sync::Arc};
 use std::fs;
 
+use inkwell::values::BasicValueEnum;
 use inkwell::{builder::Builder, context::Context, execution_engine::{ExecutionEngine, JitFunction}, module::Module, OptimizationLevel};
 
 use crate::backend::llvm::{link, target, Triple};
@@ -10,6 +12,7 @@ pub struct CodeGen<'ctx> {
     pub modules: Vec<Arc<Module<'ctx>>>,
     pub builder: Builder<'ctx>,
     pub execution_engine: ExecutionEngine<'ctx>,
+    pub values: RefCell<HashMap<String, BasicValueEnum<'ctx>>>,
 }
 
 pub fn new(context: &Context) -> Result<CodeGen<'_>, Box<dyn Error>> {
@@ -24,6 +27,7 @@ pub fn new(context: &Context) -> Result<CodeGen<'_>, Box<dyn Error>> {
         modules,
         builder,
         execution_engine,
+        values: RefCell::new(HashMap::new()),
     };
 
     Ok(codegen)

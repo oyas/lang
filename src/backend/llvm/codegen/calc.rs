@@ -1,6 +1,6 @@
-use std::error::Error;
+use std::{any::Any, error::Error, ops::Deref};
 
-use inkwell::values::IntValue;
+use inkwell::values::{BasicValue, IntValue};
 
 use crate::ast::Expression;
 
@@ -33,6 +33,9 @@ pub fn build_expression<'a>(codegen: &CodeGen<'a>, expr: &Expression) -> Result<
             let i32_type = codegen.context.i32_type();
             i32_type.const_int(*a as u64, false)
         },
+        Expression::Identifier(a) => {
+            codegen.values.borrow().get(a).unwrap().as_basic_value_enum().into_int_value()
+        },
         Expression::Add(a, b) => {
             let lhs = build_expression(codegen, a).unwrap();
             let rhs = build_expression(codegen, b).unwrap();
@@ -54,6 +57,14 @@ pub fn build_expression<'a>(codegen: &CodeGen<'a>, expr: &Expression) -> Result<
             codegen.builder.build_int_signed_div(lhs, rhs, "div").unwrap()
         },
         Expression::Parentheses(a) => build_expression(codegen, a).unwrap(),
+        Expression::Let(a, b) => {
+            let Expression::Identifier(ref l) = **a else {
+                panic!("Cannot assign to non-identifier.")
+            };
+            let r = build_expression(codegen, b).unwrap();
+            codegen.values.borrow_mut().insert(l.clone(), r.as_basic_value_enum());
+            codegen.context.i32_type().const_zero()
+        },
         _ => {
             panic!("not implemented");
         },

@@ -11,6 +11,8 @@ pub enum Expression {
     Mul(Box<Expression>, Box<Expression>),  // *
     Div(Box<Expression>, Box<Expression>),  // /
     Parentheses(Box<Expression>),  // ()
+    Let(Box<Expression>, Box<Expression>),  // let l = r
+    Assign(Box<Expression>, Box<Expression>)  // =
 }
 
 impl Expression {
@@ -25,6 +27,8 @@ impl Expression {
             Self::Mul(_, _) => -20,
             Self::Div(_, _) => -20,
             Self::Parentheses(_) => 0,
+            Self::Let(_, _) => -100,
+            Self::Assign(_, _) => -100,
         }
     }
 
@@ -35,6 +39,8 @@ impl Expression {
             Self::Mul(a, b) => vec![a, b],
             Self::Div(a, b) => vec![a, b],
             Self::Parentheses(a) => vec![a],
+            Self::Let(a, b) => vec![a, b],
+            Self::Assign(a, b) => vec![a, b],
             _ => vec![],
         }
     }

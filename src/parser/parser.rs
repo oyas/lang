@@ -4,8 +4,8 @@ use std::borrow::Borrow;
 
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{self, multispace0, char, line_ending, space0};
-use nom::combinator::{eof, map, opt, value};
+use nom::character::complete::{self, alphanumeric1, char, line_ending, multispace0, space0, space1};
+use nom::combinator::{cond, eof, map, not, opt, peek, value};
 use nom::error::{context, ContextError, ParseError, VerboseError};
 use nom::multi::{many0, many0_count};
 use nom::sequence::{delimited, preceded, terminated, tuple};
@@ -32,7 +32,7 @@ pub struct IndentedStatement(
 
 #[derive(Debug, PartialEq)]
 pub enum Statement{
-    Let(),
+    Let(Expression),
     Expr(Expression),
 }
 
@@ -72,7 +72,10 @@ pub fn end_of_line_or_file(input: &str) -> SIResult<(&str, &str)> {
 
 pub fn parse_statement(input: &str) -> SIResult<Statement> {
     alt((
-        map(tag("let"), |_| Statement::Let()),
+        map(
+            tuple((keyword("let"), parse_expr, keyword("="), parse_expr)),
+            |(_, l, _, r)| Statement::Let(Expression::Let(Box::new(l), Box::new(r)))
+        ),
         map(parse_expr, |expr| Statement::Expr(expr)),
     ))(input)
 }
@@ -83,11 +86,10 @@ pub fn parse_expr(input: &str) -> SIResult<Expression> {
             tuple((
                 parse_term,
                 many0(alt((
-                    parse_add,            // expr + expr
-                    parse_sub,            // expr - expr
-                    // parse_multiplication, // expr * expr
-                    parse_mul, // expr * expr
-                    parse_div, // expr / expr
+                    parse_add,  // expr + expr
+                    parse_sub,  // expr - expr
+                    parse_mul,  // expr * expr
+                    parse_div,  // expr / expr
                 )))
             )),
             |(l, r)| reorder(l, r),
@@ -131,6 +133,17 @@ pub fn parse_identifier(input: &str) -> SIResult<Expression> {
     map(complete::alphanumeric1, |id| {
         Expression::Identifier(String::from(id))
     })(input)
+}
+
+pub fn keyword<'a>(t: &'a str) -> impl FnMut(&'a str) -> SIResult<'a, &'a str> {
+    let is_a = alphanumeric1::<_, ()>(t).is_ok();
+    terminated(tag(t), alt((
+        value((), space1),
+        value((), peek(tuple((
+            cond(is_a, not(alphanumeric1)),
+            cond(!is_a, alphanumeric1),
+        )))),
+    )))
 }
 
 pub fn bin_op<'a>(

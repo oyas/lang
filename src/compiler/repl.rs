@@ -85,7 +85,7 @@ fn make_output_buffer<'a>(codegen: &CodeGen<'a>) -> PointerValue<'a> {
     let ptr_type = codegen.context.ptr_type(AddressSpace::default());
     let i8_type = codegen.context.i8_type();
     let i8_arr_type = i8_type.array_type(4096);
-    let global_str = module.add_global(i8_arr_type, None, "global_str");
+    let global_str = module.add_global(i8_arr_type, None, "global_output_str");
     global_str.set_initializer(&i8_arr_type.const_zero());
 
     let zero = i32_type.const_int(0, false);

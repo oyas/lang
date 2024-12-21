@@ -10,6 +10,7 @@ use crate::backend::llvm::{link, target, Triple};
 pub struct CodeGen<'ctx> {
     pub context: &'ctx Context,
     pub modules: Vec<Arc<Module<'ctx>>>,
+    pub current_module: Arc<Module<'ctx>>,
     pub builder: Builder<'ctx>,
     pub execution_engine: ExecutionEngine<'ctx>,
     pub values: RefCell<HashMap<String, BasicValueEnum<'ctx>>>,
@@ -17,14 +18,15 @@ pub struct CodeGen<'ctx> {
 
 pub fn new(context: &Context) -> Result<CodeGen<'_>, Box<dyn Error>> {
     // let context = Context::create();
-    let module = context.create_module("main");
-    let execution_engine = module.create_jit_execution_engine(OptimizationLevel::None)?;
+    let current_module = Arc::new(context.create_module("main"));
+    let execution_engine = current_module.create_jit_execution_engine(OptimizationLevel::None)?;
     let builder = context.create_builder();
     let mut modules = Vec::new();
-    modules.push(Arc::new(module));
+    modules.push(Arc::clone(&current_module));
     let codegen = CodeGen {
         context,
         modules,
+        current_module,
         builder,
         execution_engine,
         values: RefCell::new(HashMap::new()),
@@ -42,6 +44,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let arc_module = Arc::new(module);
         self.modules.push(Arc::clone(&arc_module));
+        self.current_module = Arc::clone(&arc_module);
 
         arc_module
     }

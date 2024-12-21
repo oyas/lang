@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use inkwell::{context::Context, values::{BasicValue, BasicValueEnum, PointerValue}, AddressSpace};
+use inkwell::{context::Context, values::{BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace};
 
 use crate::{backend::llvm::{codegen, CodeGen}, parser::{self, IndentedStatement, Statement}};
 
@@ -34,6 +34,8 @@ pub fn repl(options: &Options) {
     }
 }
 
+const GLOBAL_OUTPUT_PTR_NAME: &str = "__global_output_ptr";
+
 pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options: &Options) -> String {
     // setup eval function
     let num = codegen.modules.len();
@@ -56,11 +58,48 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options
             //_ => panic!("Not implement! (eval)"),
         };
     };
+
+    let global_output_ptr = print_to_output(codegen, last_int_value.unwrap());
+
+    codegen.builder.build_return(Some(&global_output_ptr)).unwrap();
+
+    if options.emit_llvm_ir {
+        println!("----- Generated LLVM IR -----");
+        println!("{}", module.to_string());
+        println!("----- End of LLVM IR -----");
+    }
+
+    // execute
+    codegen.run_jit_eval_function(&fn_name)
+}
+
+pub fn setup(context: &Context) -> codegen::CodeGen {
+    let codegen = codegen::new(&context).unwrap();
+
+    codegen
+}
+
+fn make_output_buffer<'a>(codegen: &CodeGen<'a>) -> PointerValue<'a> {
+    let module = &codegen.current_module;
+    let i32_type = codegen.context.i32_type();
+    let ptr_type = codegen.context.ptr_type(AddressSpace::default());
+    let i8_type = codegen.context.i8_type();
+    let i8_arr_type = i8_type.array_type(4096);
+    let global_str = module.add_global(i8_arr_type, None, "global_str");
+    global_str.set_initializer(&i8_arr_type.const_zero());
+
+    let zero = i32_type.const_int(0, false);
+    unsafe {
+        codegen.builder.build_gep(ptr_type, global_str.as_pointer_value(), &[zero, zero], "global_output_ptr").unwrap()
+    }
+}
+
+fn print_to_output<'a>(codegen: &CodeGen<'a>, value: IntValue) -> PointerValue<'a> {
+    let ptr_type = codegen.context.ptr_type(AddressSpace::default());
     let i32_type = codegen.context.i32_type();
     let sprintf_fn_type = i32_type.fn_type(&[ptr_type.into(), ptr_type.into(), i32_type.into()], true);
-    let sprintf_fn = module.add_function("sprintf", sprintf_fn_type, None);
+    let sprintf_fn = codegen.current_module.add_function("sprintf", sprintf_fn_type, None);
 
-    let GLOBAL_OUTPUT_PTR_NAME = "__global_output_ptr";
     if !codegen.values.borrow().contains_key(GLOBAL_OUTPUT_PTR_NAME) {
         let buffer = make_output_buffer(codegen);
         let mut values = codegen.values.borrow_mut();
@@ -74,40 +113,9 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options
     let fmt_str = codegen.builder.build_global_string_ptr("%d", "fmt_str").unwrap();
     codegen.builder.build_call(
         sprintf_fn,
-        &[(*global_output_ptr).into(), fmt_str.as_pointer_value().into(), last_int_value.unwrap().into()],
+        &[(*global_output_ptr).into(), fmt_str.as_pointer_value().into(), value.into()],
         "sprintf_call"
     ).unwrap();
 
-    codegen.builder.build_return(Some(global_output_ptr)).unwrap();
-
-    if options.emit_llvm_ir {
-        println!("----- Generated LLVM IR -----");
-        println!("{}", module.to_string());
-        println!("----- End of LLVM IR -----");
-    }
-
-    // execute
-    // println!("fn_name: {}", fn_name);
-    codegen.run_jit_eval_function(&fn_name)
-}
-
-pub fn setup(context: &Context) -> codegen::CodeGen {
-    let codegen = codegen::new(&context).unwrap();
-
-    codegen
-}
-
-fn make_output_buffer<'a>(codegen: &CodeGen<'a>) -> PointerValue<'a> {
-    let module = codegen.get_main_module();
-    let i32_type = codegen.context.i32_type();
-    let ptr_type = codegen.context.ptr_type(AddressSpace::default());
-    let i8_type = codegen.context.i8_type();
-    let i8_arr_type = i8_type.array_type(4096);
-    let global_str = module.add_global(i8_arr_type, None, "global_str");
-    global_str.set_initializer(&i8_arr_type.const_zero());
-
-    let zero = i32_type.const_int(0, false);
-    unsafe {
-        codegen.builder.build_gep(ptr_type, global_str.as_pointer_value(), &[zero, zero], "global_output_ptr").unwrap()
-    }
+    *global_output_ptr
 }

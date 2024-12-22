@@ -5,66 +5,52 @@ use std::borrow::Borrow;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{self, alphanumeric1, char, line_ending, multispace0, space0, space1};
-use nom::combinator::{cond, eof, map, not, opt, peek, value};
+use nom::combinator::{cond, eof, map, not, peek, value};
 use nom::error::{context, ContextError, ParseError, VerboseError};
 use nom::multi::{many0, many0_count};
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::IResult;
 
-use crate::ast::Expression;
+use crate::ast::{Ast, Expression, IndentedStatement, Statement};
 
-pub fn parse(input: &str) -> SIResult<Vec<IndentedStatement>> {
-    // tuple((parse_line, parse_line, parse_line))(input)
-    terminated(
-        many0(preceded(
-            many0(tuple((space0, line_ending))),
-            parse_line,
-        )),
-        tuple((multispace0, eof)),
+pub fn parse(input: &str) -> SIResult<Ast> {
+    map(
+        terminated(
+            many0(parse_line),
+            tuple((multispace0, eof)),
+        ),
+        |v| Ast(v),
     )(input)
-}
-
-#[derive(Debug, PartialEq)]
-pub struct IndentedStatement(
-    pub usize,
-    pub Statement,
-);
-
-#[derive(Debug, PartialEq)]
-pub enum Statement{
-    Let(Expression),
-    Assign(Expression),
-    Expr(Expression),
 }
 
 pub type SIResult<'a, T, E = VerboseError<&'a str>> = IResult<&'a str, T, E>;
 
-// pub fn parse_line<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
-//     input: &'a str
-// ) -> SIResult<IndentedStatement, E>
-// where
-//     E: ParseError<&'a str> + ContextError<&'a str>
-// {
 pub fn parse_line(input: &str) -> SIResult<IndentedStatement> {
-    // context(
-    //     "parse_line",
-    //     map(space_indent, |_| IndentedStatement(0, Option::None))
-    // )(input)
     context(
         "parse_line",
         map(
-            tuple((space_indent, parse_statement, end_of_line_or_file)),
-            |(indent, op, _)| IndentedStatement(indent, op),
-            // tuple((space_indent, end_of_line)),
-            // |(indent, _)| IndentedStatement(indent, Option::None),
+            preceded(
+                many0(tuple((space0, line_ending))),
+                tuple((space_indent, parse_statement, end_of_statemet)),
+            ),
+            |(indent, statement, _)| IndentedStatement(indent, statement),
         )
-    )
-    (input)
+    )(input)
 }
 
 pub fn space_indent(input: &str) -> SIResult<usize> {
-    // map(many0_count, |i| Indent(i))(input)
     many0_count(char(' '))(input)
+}
+
+pub fn end_of_statemet(input: &str) -> SIResult<()> {
+    terminated(
+        value((), space0),
+        alt((
+            value((), char(';')),
+            value((), peek(char('}'))),
+            value((), end_of_line_or_file),
+        )),
+    )(input)
 }
 
 pub fn end_of_line_or_file(input: &str) -> SIResult<(&str, &str)> {
@@ -73,6 +59,7 @@ pub fn end_of_line_or_file(input: &str) -> SIResult<(&str, &str)> {
 
 pub fn parse_statement(input: &str) -> SIResult<Statement> {
     alt((
+        map(parse_function, |expr| Statement::Function(expr)),
         map(parse_let, |expr| Statement::Let(expr)),
         map(parse_assign, |expr| Statement::Assign(expr)),
         map(parse_expr, |expr| Statement::Expr(expr)),
@@ -81,8 +68,8 @@ pub fn parse_statement(input: &str) -> SIResult<Statement> {
 
 pub fn parse_let(input: &str) -> SIResult<Expression> {
     map(
-        tuple((keyword("let"), parse_expr, keyword("="), parse_expr)),
-        |(_, l, _, r)| Expression::Let(Box::new(l), Box::new(r))
+        tuple((keyword("let"), parse_expr, keyword("="), multispace0, parse_expr)),
+        |(_, l, _, _, r)| Expression::Let(Box::new(l), Box::new(r))
     )(input)
 }
 
@@ -113,7 +100,6 @@ pub fn parse_expr(input: &str) -> SIResult<Expression> {
             )),
             |(l, r)| reorder(l, r),
         ),
-        // map(space0, |_| Expression::I64(0)),
         space0,
     )(input)
 }
@@ -122,16 +108,34 @@ pub fn reorder(init: Expression, v: Vec<Expression>) -> Expression {
     let mut l = init;
     for e in v {
         l = l.reorder(e);
-        // match e {
-        //     Expression::Add(_, r) => {
-        //         l = Expression::Add(Box::new(l), r)
-        //     },
-        //     _ => {
-        //         panic!("not implemented for reorder! {:?}", e)
-        //     }
-        // };
     }
     l
+}
+
+fn parse_function(input: &str) -> SIResult<Expression> {
+    map(
+        tuple((
+            preceded(
+                keyword("fn"),
+                parse_identifier
+            ),
+            delimited(
+                keyword("("),
+                many0(parse_expr),
+                keyword(")"),
+            ),
+            delimited(
+                keyword("{"),
+                many0(parse_line),
+                keyword("}"),
+            ),
+        )),
+        |(name, args, body)| Expression::Function {
+            name: Box::new(name),
+            args,
+            body,
+        }
+    )(input)
 }
 
 pub fn parse_term(input: &str) -> SIResult<Expression> {
@@ -160,7 +164,7 @@ pub fn keyword<'a>(t: &'a str) -> impl FnMut(&'a str) -> SIResult<'a, &'a str> {
         value((), space1),
         value((), peek(tuple((
             cond(is_a, not(alphanumeric1)),
-            cond(!is_a, alphanumeric1),
+            // cond(!is_a, alphanumeric1),
         )))),
     )))
 }
@@ -239,6 +243,18 @@ mod tests {
         let input = "\n10 + 1 \n + (2) \n 1 + a2\n\n";
         println!("input = {}", input);
         let result = parse(input).finish();
+        println!("result = {:?}", result);
+        if let Err(e) = &result {
+            println!("convert_error: \n{}", convert_error(input, e.clone()));
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_end_of_line_or_file() {
+        let input = "";
+        println!("input = {}", input);
+        let result = end_of_line_or_file(input).finish();
         println!("result = {:?}", result);
         if let Err(e) = &result {
             println!("convert_error: \n{}", convert_error(input, e.clone()));

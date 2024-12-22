@@ -1,10 +1,30 @@
 #![allow(unused)]
 
 #[derive(Debug, PartialEq)]
+pub struct Ast(
+    pub Vec<IndentedStatement>,
+);
+
+#[derive(Debug, PartialEq)]
+pub struct IndentedStatement(
+    pub usize,
+    pub Statement,
+);
+
+#[derive(Debug, PartialEq)]
+pub enum Statement{
+    Let(Expression),
+    Assign(Expression),
+    Expr(Expression),
+    Function(Expression),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     Resolving(),  // used for left term before reordering
     None(),
     Identifier(String),
+    Typed(Box<Expression>, Box<Expression>),  // x: Type
     I64(i64),
     Add(Box<Expression>, Box<Expression>),  // +
     Sub(Box<Expression>, Box<Expression>),  // -
@@ -12,7 +32,12 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),  // /
     Parentheses(Box<Expression>),  // ()
     Let(Box<Expression>, Box<Expression>),  // let l = r
-    Assign(Box<Expression>, Box<Expression>)  // =
+    Assign(Box<Expression>, Box<Expression>),  // =
+    Function {  // fn f(x: Type) -> Type { ... }
+        name: Box<Expression>,
+        args: Vec<Expression>,
+        body: Vec<IndentedStatement>,
+    },
 }
 
 impl Expression {
@@ -21,6 +46,7 @@ impl Expression {
             Self::Resolving() => 0,
             Self::None() => 0,
             Self::Identifier(_) => 0,
+            Self::Typed(_, _) => 0,
             Self::I64(_) => 0,
             Self::Add(_, _) => -50,
             Self::Sub(_, _) => -50,
@@ -29,6 +55,7 @@ impl Expression {
             Self::Parentheses(_) => 0,
             Self::Let(_, _) => -100,
             Self::Assign(_, _) => -100,
+            Self::Function{..} => -200,
         }
     }
 

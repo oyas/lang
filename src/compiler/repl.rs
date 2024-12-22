@@ -2,7 +2,7 @@ use std::io::Write;
 
 use inkwell::{context::Context, values::{BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace};
 
-use crate::{backend::llvm::{codegen, CodeGen}, parser::{self, IndentedStatement, Statement}};
+use crate::{ast::{Ast, IndentedStatement, Statement}, backend::llvm::{codegen, CodeGen}, parser::{self, is_complete}};
 
 use super::Options;
 
@@ -13,13 +13,20 @@ pub fn repl(options: &Options) {
     loop {
         print!("REPL> ");
         std::io::stdout().flush().unwrap();
-        let mut s = String::new();
-        std::io::stdin().read_line(&mut s).ok();
-        if s == "" {
+        let mut input = String::new();
+        loop {
+            let mut s = String::new();
+            std::io::stdin().read_line(&mut s).ok();
+            input += &s;
+            if is_complete(&input).is_ok() {
+                break;
+            }
+        }
+        if input == "" {
             println!("quit");
             break;
         }
-        let ast = match parser::parse(&s) {
+        let ast = match parser::parse(&input) {
             Ok((_, r)) => r,
             Err(e) => {
                 println!("parse error! {:?}", e);
@@ -36,7 +43,7 @@ pub fn repl(options: &Options) {
 
 const GLOBAL_OUTPUT_PTR_NAME: &str = "__global_output_ptr";
 
-pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options: &Options) -> String {
+pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Ast, options: &Options) -> String {
     // setup eval function
     let num = codegen.modules.len();
     let module_name = format!("eval_{}", num);
@@ -50,11 +57,12 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Vec<IndentedStatement>, options
 
     // generate llvm ir
     let mut last_int_value = None;
-    for IndentedStatement(_i, s) in ast {
+    for IndentedStatement(_i, s) in &ast.0 {
         last_int_value = match s {
             Statement::Let(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             Statement::Assign(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             Statement::Expr(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
+            Statement::Function(_) => panic!("Not implement! (eval)"),
             //_ => panic!("Not implement! (eval)"),
         };
     };

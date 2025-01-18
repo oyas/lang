@@ -24,9 +24,6 @@ RUN cargo install --locked wasm-tools
 
 ENV WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-${WASI_VERSION}.0-x86_64-linux
 
-# for inkwell
-ENV LLVM_SYS_180_PREFIX=/usr/lib/llvm-${LLVM_VERSION}
-
 WORKDIR /mnt
 
 CMD ["bash"]

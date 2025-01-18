@@ -9,3 +9,4 @@ edition = "2021"
 nom = "7"
 inkwell = { version = "0.5.0", features = ["llvm18-0"] }
 melior = "0.21.0"
+mlir-sys = "0.4.1"

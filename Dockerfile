@@ -1,23 +1,31 @@
-FROM rust:1.82.0-bullseye AS dev
+FROM rust:1.84.0-bullseye AS dev
+
+ENV LLVM_VERSION=19
 
 RUN apt-get update \
     && apt-get install -y lsb-release wget software-properties-common gnupg \
-    && bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 18 \
-    && apt-get install -y libpolly-18-dev libzstd-dev
+    && bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- $LLVM_VERSION \
+    && apt-get install -y libpolly-${LLVM_VERSION}-dev libzstd-dev libmlir-${LLVM_VERSION}-dev \
+    && ln -s /usr/lib/llvm-${LLVM_VERSION}/bin/llvm-config /usr/local/bin/llvm-config
+
+ENV WASI_VERSION=25
 
 RUN mkdir -p /opt/wasi-sdk \
     && cd /opt/wasi-sdk \
-    && wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz \
-    && tar xvf wasi-sdk-24.0-x86_64-linux.tar.gz \
-    && rm wasi-sdk-24.0-x86_64-linux.tar.gz \
+    && wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION}.0-x86_64-linux.tar.gz \
+    && tar xvf wasi-sdk-${WASI_VERSION}.0-x86_64-linux.tar.gz \
+    && rm wasi-sdk-${WASI_VERSION}.0-x86_64-linux.tar.gz \
     && cd .. \
-    && echo "export WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-24.0-x86_64-linux" >> /etc/profile.d/wasi-sdk.sh
+    && echo "export WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-${WASI_VERSION}.0-x86_64-linux" >> /etc/profile.d/wasi-sdk.sh
 
 RUN curl https://wasmtime.dev/install.sh -sSf | bash
 
 RUN cargo install --locked wasm-tools
 
-ENV WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-24.0-x86_64-linux
+ENV WASI_SDK_PATH=/opt/wasi-sdk/wasi-sdk-${WASI_VERSION}.0-x86_64-linux
+
+# for inkwell
+ENV LLVM_SYS_180_PREFIX=/usr/lib/llvm-${LLVM_VERSION}
 
 WORKDIR /mnt
 

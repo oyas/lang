@@ -14,6 +14,19 @@ cargo run
 
 ## Install
 
+### LLVM, MLIR
+
+https://apt.llvm.org/
+```
+bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 19
+sudo apt install libzstd-dev libpolly-19-dev libmlir-19-dev
+```
+```
+export MLIR_SYS_190_PREFIX=/usr/lib/llvm-19
+export TABLEGEN_190_PREFIX=/usr/lib/llvm-19
+export LLVM_SYS_180_PREFIX=/usr/lib/llvm-19  # for inkwell
+```
+
 ### wasmtime
 ```
 curl https://wasmtime.dev/install.sh -sSf | bash

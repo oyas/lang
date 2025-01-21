@@ -76,7 +76,6 @@ pub fn create_main(codegen: &CodeGen) {
             // %0 = memref.get_global @my_string : memref<14xi8>
             let v0 = block.append_operation(memref::get_global(context, "hello_string", mem_ref_type, location));
             // %1 = memref.extract_aligned_pointer_as_index %0 : memref<14xi8> -> index
-            println!("mem_ref_type = {}", mem_ref_type.to_string());
             let v1 = block.append_operation(
                 ods::memref::extract_aligned_pointer_as_index(context, index_type, v0.result(0).unwrap().into(), location).as_operation().clone()
             );
@@ -148,8 +147,19 @@ mod tests {
         codegen.run_pass();
         println!("mlir (after pass): {}", codegen.module.read().unwrap().as_operation());
 
+        // print llvm ir
         codegen.save_llvm_ir("", true);
+
+        // execute
         let result = codegen.execute_no_args("main");
         println!("result = {:?}", result);
+
+        // to inkwell module
+        let inkwell_context = inkwell::context::Context::create();
+        let inkwell_module = codegen.to_inkwell_module(&inkwell_context);
+        println!("inkwell_module = {}", inkwell_module.to_string());
+
+        // save object file
+        // codegen.save_object("print.o");
     }
 }

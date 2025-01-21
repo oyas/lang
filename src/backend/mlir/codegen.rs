@@ -77,7 +77,7 @@ impl<'ctx> CodeGen<'ctx> {
         res.map(|_| result)
     }
 
-    pub fn to_inkwell_module(self, inkwell_context: &inkwell::context::Context) -> inkwell::module::Module {
+    pub fn to_inkwell_module(&self, inkwell_context: &inkwell::context::Context) -> inkwell::module::Module {
         let module = self.module.read().unwrap();
         unsafe {
             let m = mlirTranslateModuleToLLVMIR(

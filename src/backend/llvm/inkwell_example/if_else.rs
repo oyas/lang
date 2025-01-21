@@ -72,14 +72,12 @@ fn if_else(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
 mod tests {
     use inkwell::{context::Context, execution_engine::JitFunction};
 
-    use crate::backend::llvm::{codegen, link, target};
-
     use super::*;
 
     #[test]
     fn test() {
         let context = Context::create();
-        let codegen = codegen::new(&context).unwrap();
+        let codegen = CodeGen::new(&context);
 
         if_else(&codegen).unwrap();
 

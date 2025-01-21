@@ -81,8 +81,8 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Ast, options: &Options) -> Stri
     codegen.run_jit_eval_function(&fn_name)
 }
 
-pub fn setup(context: &Context) -> codegen::CodeGen {
-    let codegen = codegen::new(&context).unwrap();
+pub fn setup(context: &Context) -> CodeGen {
+    let codegen = CodeGen::new(&context);
 
     codegen
 }

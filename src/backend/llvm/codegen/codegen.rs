@@ -16,26 +16,25 @@ pub struct CodeGen<'ctx> {
     pub values: RefCell<HashMap<String, BasicValueEnum<'ctx>>>,
 }
 
-pub fn new(context: &Context) -> Result<CodeGen<'_>, Box<dyn Error>> {
-    // let context = Context::create();
-    let current_module = Arc::new(context.create_module("main"));
-    let execution_engine = current_module.create_jit_execution_engine(OptimizationLevel::None)?;
-    let builder = context.create_builder();
-    let mut modules = Vec::new();
-    modules.push(Arc::clone(&current_module));
-    let codegen = CodeGen {
-        context,
-        modules,
-        current_module,
-        builder,
-        execution_engine,
-        values: RefCell::new(HashMap::new()),
-    };
-
-    Ok(codegen)
-}
-
 impl<'ctx> CodeGen<'ctx> {
+    pub fn new(context: &Context) -> CodeGen {
+        let current_module = Arc::new(context.create_module("main"));
+        let execution_engine = current_module.create_jit_execution_engine(OptimizationLevel::None).unwrap();
+        let builder = context.create_builder();
+        let mut modules = Vec::new();
+        modules.push(Arc::clone(&current_module));
+        let codegen = CodeGen {
+            context,
+            modules,
+            current_module,
+            builder,
+            execution_engine,
+            values: RefCell::new(HashMap::new()),
+        };
+
+        codegen
+    }
+
     pub fn create_module(&mut self, name: &str, source_file_name: &str) -> Arc<Module<'ctx>> {
         let module = self.context.create_module(name);
         module.set_source_file_name(source_file_name);

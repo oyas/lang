@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test() {
         let context = Context::create();
-        let codegen = codegen::new(&context).unwrap();
+        let codegen = CodeGen::new(&context);
         let module = codegen.get_main_module();
 
         let i32_type = codegen.context.i32_type();

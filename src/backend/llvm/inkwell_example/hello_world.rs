@@ -33,14 +33,14 @@ fn hello_world(codegen: &CodeGen) -> Result<(), Box<dyn Error>> {
 mod tests {
     use inkwell::execution_engine::JitFunction;
 
-    use crate::backend::llvm::{codegen, link, target};
+    use crate::backend::llvm::target;
 
     use super::*;
 
     #[test]
     fn test() {
         let context = Context::create();
-        let codegen = codegen::new(&context).unwrap();
+        let codegen = CodeGen::new(&context);
 
         hello_world(&codegen).unwrap();
 

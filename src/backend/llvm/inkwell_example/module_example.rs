@@ -60,14 +60,14 @@ fn module_example<'a>(codegen: &mut CodeGen<'a>) -> Result<(), Box<dyn Error>> {
 mod tests {
     use inkwell::{context::Context, execution_engine::JitFunction, llvm_sys::target_machine, targets::FileType};
 
-    use crate::backend::llvm::{codegen, link, target};
+    use crate::backend::llvm::target;
 
     use super::*;
 
     #[test]
     fn test() {
         let context = Context::create();
-        let mut codegen = codegen::new(&context).unwrap();
+        let mut codegen = CodeGen::new(&context);
 
         module_example(&mut codegen).unwrap();
 

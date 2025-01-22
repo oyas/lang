@@ -36,9 +36,12 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    pub fn new_module(&mut self) {
-        self.module = Arc::new(RwLock::new(Module::new(Location::unknown(&self.context))));
+    pub fn new_module(&mut self, filename: &str) -> Arc<RwLock<Module<'ctx>>> {
+        let location = Location::new(&self.context, filename, 0, 0);
+        self.module = Arc::new(RwLock::new(Module::new(location)));
+        self.module.write().unwrap().as_operation_mut().set_attribute("sym_name", StringAttribute::new(&self.context, filename).into());
         self.modules.push(Arc::clone(&self.module));
+        Arc::clone(&self.module)
     }
 
     pub fn module(&self) -> RwLockReadGuard<Module<'ctx>> {
@@ -77,15 +80,27 @@ impl<'ctx> CodeGen<'ctx> {
         res.map(|_| result)
     }
 
-    pub fn to_inkwell_module(&self, inkwell_context: &inkwell::context::Context) -> inkwell::module::Module {
+    pub fn to_inkwell_module<'a>(&self, inkwell_context: &'a inkwell::context::Context) -> inkwell::module::Module<'a> {
+        let engine = self.create_engine();
         let module = self.module.read().unwrap();
-        unsafe {
+        let sym_name = if let Ok(sym_name) = module.as_operation().attribute("sym_name") {
+            sym_name.to_string()
+        } else {
+            "\"\"".to_string()
+        };
+        let striped_sym_name = sym_name.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap();
+        let inkwell_module = unsafe {
             let m = mlirTranslateModuleToLLVMIR(
                 module.as_operation().to_raw(),
-                inkwell_context.raw() as *mut LLVMOpaqueContext
+                inkwell_context.raw() as *mut LLVMOpaqueContext,
             );
             inkwell::module::Module::new(m as *mut inkwell::llvm_sys::LLVMModule)
+        };
+        if !striped_sym_name.is_empty() {
+            inkwell_module.set_source_file_name(&striped_sym_name);
+            inkwell_module.set_name(&striped_sym_name);
         }
+        inkwell_module
     }
 
     pub fn save_llvm_ir(&self, path: &str, show_debug: bool) {

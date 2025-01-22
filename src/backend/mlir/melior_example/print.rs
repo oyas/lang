@@ -14,6 +14,7 @@ pub fn create_main(codegen: &CodeGen) {
 
     let index_type = Type::index(&context);
     let i8_type = IntegerType::new(&context, 8).into();
+    let i32_type = IntegerType::new(context, 32).into();
     let i64_type = IntegerType::new(context, 64).into();
     let ptr_type = llvm::r#type::pointer(context, 0);
 
@@ -60,14 +61,14 @@ pub fn create_main(codegen: &CodeGen) {
         &context,
         StringAttribute::new(&context, "main"),
         TypeAttribute::new(
-            FunctionType::new(&context, &[], &[index_type]).into(),
+            FunctionType::new(&context, &[], &[i32_type]).into(),
         ),
         {
             let block = Block::new(&[]);
 
             let c = arith::constant(
                 context,
-                Attribute::parse(context, "41 : index").unwrap(),
+                Attribute::parse(context, "41 : i32").unwrap(),
                 location,
             );
             let value = block.append_operation(c).result(0).unwrap().into();
@@ -136,6 +137,8 @@ mod tests {
     use inkwell::llvm_sys;
     use mlir_sys::{mlirTranslateModuleToLLVMIR, LLVMOpaqueContext};
 
+    use crate::backend::{self, llvm::target};
+
     use super::*;
 
     #[test]
@@ -154,12 +157,19 @@ mod tests {
         let result = codegen.execute_no_args("main");
         println!("result = {:?}", result);
 
+        // save object file
+        // codegen.save_object("print.o");  // Could not compile puts: Symbols not found: [ _mlir_puts ]
+
         // to inkwell module
         let inkwell_context = inkwell::context::Context::create();
         let inkwell_module = codegen.to_inkwell_module(&inkwell_context);
         println!("inkwell_module = {}", inkwell_module.to_string());
 
-        // save object file
-        // codegen.save_object("print.o");
+        let mut inkwell_codegen = backend::llvm::CodeGen::new(&inkwell_context);
+        inkwell_codegen.add_module(inkwell_module);
+
+        // compile
+        inkwell_codegen.compile().unwrap();  // for default target
+        inkwell_codegen.compile_with_target(&target::Triple::Wasm32WasiLibc).unwrap();  // for WASM
     }
 }

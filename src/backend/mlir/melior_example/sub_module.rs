@@ -20,7 +20,6 @@ pub fn create_add(context: &Context) -> Module {
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
 
-    // let context = Context::new();
     context.append_dialect_registry(&registry);
     context.load_all_available_dialects();
 

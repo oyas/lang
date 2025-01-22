@@ -18,7 +18,7 @@ pub struct CodeGen<'ctx> {
 
 impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &Context) -> CodeGen {
-        let current_module = Arc::new(context.create_module("main"));
+        let current_module = Arc::new(context.create_module("_main"));
         let execution_engine = current_module.create_jit_execution_engine(OptimizationLevel::None).unwrap();
         let builder = context.create_builder();
         let mut modules = Vec::new();
@@ -48,6 +48,16 @@ impl<'ctx> CodeGen<'ctx> {
         arc_module
     }
 
+    pub fn add_module(&mut self, module: Module<'ctx>) -> Arc<Module<'ctx>> {
+        self.execution_engine.add_module(&module).unwrap();
+
+        let arc_module = Arc::new(module);
+        self.modules.push(Arc::clone(&arc_module));
+        self.current_module = Arc::clone(&arc_module);
+
+        arc_module
+    }
+
     pub fn get_main_module(&self) -> Arc<Module<'ctx>> {
         Arc::clone(self.modules.get(0).unwrap())
     }
@@ -67,7 +77,8 @@ impl<'ctx> CodeGen<'ctx> {
             // println!("----- Generated LLVM IR of {} -----", name);
             // println!("{}", module.to_string());
             // println!("----- End of LLVM IR of {} -----", name);
-            target::run_passes_on(&self.get_main_module(), target_triple);
+            // target::run_passes_on(&self.get_main_module(), target_triple);
+            target::run_passes_on(&module, target_triple);
             objects.append(&mut target::write_to_file(module, target_triple, name));
         }
         match &target_triple {

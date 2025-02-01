@@ -42,6 +42,15 @@ module attributes {llvm.data_layout = "e", llvm.target_triple = "x86_64-pc-linux
 			}
 		}
 
+		%10 = arith.cmpi "ne", %c0_index, %c0_index : index
+		cf.assert %10, "Expected ... to be true"
+		cf.cond_br %10, ^bb0(%c1_i64 : i64), ^bb1
+
+	^bb0(%11: i64):
+		llvm.call @puts(%sp_ok) : (!llvm.ptr) -> ()
+		return %11 : i64
+
+	^bb1:
 		return %c0_i64 : i64
 	}
 }

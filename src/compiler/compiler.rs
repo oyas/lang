@@ -8,6 +8,8 @@ use super::repl;
 
 pub struct Options {
     pub emit_llvm_ir: bool,
+    pub emit_mlir: bool,
+    pub emit_hir: bool,
     pub emit_ast: bool,
 }
 

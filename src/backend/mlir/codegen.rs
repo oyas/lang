@@ -7,10 +7,10 @@ use melior::{
 use mlir_sys::{mlirTranslateModuleToLLVMIR, LLVMOpaqueContext};
 
 pub struct CodeGen<'ctx> {
-    pub context: &'ctx Context,
     pub module: Arc<RwLock<Module<'ctx>>>,
     pub modules: Vec<Arc<RwLock<Module<'ctx>>>>,
     pub symbols: HashMap<String, SymbolInfo>,
+    pub context: Context,  // (drop after modules)
 }
 
 pub struct SymbolInfo {
@@ -19,7 +19,8 @@ pub struct SymbolInfo {
 }
 
 impl<'ctx> CodeGen<'ctx> {
-    pub fn new(context: &'ctx Context) -> Self {
+    pub fn new() -> Self {
+        let context = Context::new();
         let registry = DialectRegistry::new();
         register_all_dialects(&registry);
 
@@ -28,11 +29,12 @@ impl<'ctx> CodeGen<'ctx> {
 
         let module = Arc::new(RwLock::new(Module::new(Location::unknown(&context))));
         let modules = vec![Arc::clone(&module)];
+
         CodeGen {
-            context,
             module,
             modules,
             symbols: HashMap::new(),
+            context,
         }
     }
 
@@ -66,12 +68,12 @@ impl<'ctx> CodeGen<'ctx> {
         engine
     }
 
-    pub fn execute_no_args(&self, name: &str) -> Result<usize, Error> {
+    pub fn execute_no_args(&self, function_name: &str) -> Result<usize, Error> {
         let engine = self.create_engine();
         let mut result: usize = 0;
         let res = unsafe {
             engine.invoke_packed(
-                name,
+                function_name,
                 &mut [
                     &mut result as *mut usize as *mut (),
                 ],

@@ -2,3 +2,4 @@
 *.o
 for
 mlir_c_api
+a.*

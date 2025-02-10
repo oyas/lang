@@ -63,7 +63,7 @@ pub fn eval<'a>(codegen: &mut CodeGen<'a>, ast: &Ast, options: &Options) -> Stri
             Statement::Assign(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             Statement::Expr(e) => Some(codegen::calc::build_expression(&codegen, e).unwrap()),
             Statement::Function(_) => panic!("Not implement! (eval)"),
-            //_ => panic!("Not implement! (eval)"),
+            _ => panic!("Not implement! (eval)"),
         };
     };
 

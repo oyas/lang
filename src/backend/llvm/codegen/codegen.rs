@@ -115,6 +115,15 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    pub fn run_jit_eval_function_mlir(&self, fn_name: &str) -> i32 {
+        // println!("JIT call {}", fn_name);
+        type FuncType = unsafe extern "C" fn() -> i32;
+        unsafe {
+            let f: JitFunction<FuncType> = self.execution_engine.get_function(fn_name).unwrap();
+            f.call()
+        }
+    }
+
     fn wasm_start_module(&self) -> Module<'ctx> {
         // _start function for wasm
         let module = self.context.create_module("_start");

@@ -19,10 +19,10 @@ use r#type::IntegerType;
 use crate::backend::mlir::CodeGen;
 
 pub fn create_add(codegen: &mut CodeGen) {
-    let context = codegen.context;
-    let location = Location::unknown(&context);
     let mut arc_module = codegen.new_module("add");
     let module = arc_module.write().unwrap();
+    let context = &codegen.context;
+    let location = Location::unknown(context);
 
     let index_type = Type::index(&context);
 
@@ -56,10 +56,11 @@ pub fn create_add(codegen: &mut CodeGen) {
 }
 
 pub fn create_main(codegen: &mut CodeGen) {
-    let context = codegen.context;
-    let location = Location::unknown(&context);
     let mut arc_module = codegen.new_module("main");
     let module = arc_module.write().unwrap();
+    let context = &codegen.context;
+    let location = Location::unknown(&context);
+    let location = Location::new(&context, "aaa", 1, 3);
 
     let index_type = Type::index(&context);
     let i32_type = IntegerType::new(&context, 32).into();
@@ -134,9 +135,8 @@ mod tests {
 
     #[test]
     fn test() {
-        let context = Context::new();
         let inkwell_context = inkwell::context::Context::create();
-        let mut codegen = CodeGen::new(&context);
+        let mut codegen = CodeGen::new();
         let mut inkwell_codegen = backend::llvm::CodeGen::new(&inkwell_context);
 
         // add module

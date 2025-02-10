@@ -16,6 +16,7 @@ pub enum Statement{
     Let(Expression),
     Assign(Expression),
     Expr(Expression),
+    EvalExpr(Expression),
     Function(Expression),
 }
 

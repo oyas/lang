@@ -61,6 +61,7 @@ pub fn parse_statement(input: &str) -> SIResult<Statement> {
     alt((
         map(parse_function, |expr| Statement::Function(expr)),
         map(parse_let, |expr| Statement::Let(expr)),
+        map(parse_eval_expr, |expr| Statement::EvalExpr(expr)),
         map(parse_assign, |expr| Statement::Assign(expr)),
         map(parse_expr, |expr| Statement::Expr(expr)),
     ))(input)
@@ -70,6 +71,13 @@ pub fn parse_let(input: &str) -> SIResult<Expression> {
     map(
         tuple((keyword("let"), parse_expr, keyword("="), multispace0, parse_expr)),
         |(_, l, _, _, r)| Expression::Let(Box::new(l), Box::new(r))
+    )(input)
+}
+
+pub fn parse_eval_expr(input: &str) -> SIResult<Expression> {
+    map(
+        tuple((keyword("="), parse_expr)),
+        |(_, l)| l
     )(input)
 }
 

@@ -43,6 +43,32 @@ pub fn create_main(codegen: &CodeGen) {
     );
     module.body().append_operation(memref);
 
+    // memref.global "private" constant @fmt_pd : memref<3xi8> = dense<[0x48,0x65,0x6c,0x6c,0x6f,0x2c,0x20,0x57,0x6f,0x72,0x6c,0x64,0x21,0]>
+    let mem_ref_type_4 = MemRefType::new(i8_type, &[4], None, None);
+    let memref = memref::global(
+        context,
+        "fmt_pd",
+        Some("private"),
+        mem_ref_type_4,
+        Some(
+            DenseElementsAttribute::new(
+                RankedTensorType::new(&[4], i8_type, None).into(),
+                &[
+                    IntegerAttribute::new(i8_type, 37).into(),   // %
+                    IntegerAttribute::new(i8_type, 100).into(),  // d
+                    IntegerAttribute::new(i8_type, 10).into(),   // \n
+                    IntegerAttribute::new(i8_type, 0).into(),    // \0
+                ],
+            )
+            .unwrap()
+            .into(),
+        ),
+        true,
+        None,
+        location,
+    );
+    module.body().append_operation(memref);
+
     // llvm.func external @puts(!llvm.ptr) -> ()
     let puts_fn = llvm::func(
         context,
@@ -57,6 +83,20 @@ pub fn create_main(codegen: &CodeGen) {
     );
     let puts_fn = module.body().append_operation(puts_fn);
 
+    // llvm.func internal @printf(!llvm.ptr, ...) -> i32
+    let printf_fn = llvm::func(
+        context,
+        StringAttribute::new(&context, "printf"),
+        TypeAttribute::new(llvm::r#type::function(i32_type, &[ptr_type], true)),
+        Region::new(),
+        &[(
+            Identifier::new(&context, "linkage"),
+            llvm::attributes::linkage(&context, Linkage::External),
+        )],
+        location,
+    );
+    let printf_fn = module.body().append_operation(printf_fn);
+
     module.body().append_operation(func::func(
         &context,
         StringAttribute::new(&context, "main"),
@@ -68,7 +108,7 @@ pub fn create_main(codegen: &CodeGen) {
 
             let c = arith::constant(
                 context,
-                Attribute::parse(context, "41 : i32").unwrap(),
+                Attribute::parse(context, "41 : i64").unwrap(),
                 location,
             );
             let value = block.append_operation(c).result(0).unwrap().into();
@@ -112,7 +152,34 @@ pub fn create_main(codegen: &CodeGen) {
             //     .unwrap()
             // );
 
-            block.append_operation(func::r#return(&[value], location));
+            // %10 = memref.get_global @fmt_pd : memref<14xi8>
+            let v10 = block.append_operation(memref::get_global(context, "fmt_pd", mem_ref_type_4, location));
+            // %11 = memref.extract_aligned_pointer_as_index %10 : memref<14xi8> -> index
+            let v11 = block.append_operation(
+                ods::memref::extract_aligned_pointer_as_index(context, index_type, v10.result(0).unwrap().into(), location).as_operation().clone()
+            );
+            // %12 = arith.index_cast %11 : index to i64
+            let v12 = block.append_operation(
+                arith::index_cast(v11.result(0).unwrap().into(), i64_type, location)
+            );
+            // %13 = llvm.inttoptr %12 : i64 to !llvm.ptr
+            let v13 = block.append_operation(
+                ods::llvm::inttoptr(context, ptr_type, v12.result(0).unwrap().into(), location).as_operation().clone()
+            );
+            let res = block.append_operation(ods::llvm::CallOperationBuilder::new(context, location)
+                .callee(FlatSymbolRefAttribute::new(&context, "printf"))
+                .var_callee_type(
+                    TypeAttribute::new(llvm::r#type::function(i32_type, &[ptr_type], true)),
+                )
+                .result(i32_type)
+                .callee_operands(&[v13.result(0).unwrap().into(), value])
+                .build()
+                .as_operation()
+                .clone()
+            );
+
+            println!("res = {:?}", res.result(0));
+            block.append_operation(func::r#return(&[res.result(0).unwrap().into()], location));
 
             let region = Region::new();
             region.append_block(block);
@@ -143,8 +210,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let context = Context::new();
-        let mut codegen = CodeGen::new(&context);
+        let mut codegen = CodeGen::new();
         create_main(&codegen);
         println!("mlir (before pass): {}", codegen.module.read().unwrap().as_operation());
         codegen.run_pass();

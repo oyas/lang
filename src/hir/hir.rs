@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex, RwLock, Weak}};
 
 use super::Type;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HirHub {
     pub hirs: Vec<Hir>,
     pub types: Vec<Type>,
@@ -23,7 +23,7 @@ impl HirHub {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Hir {  // file scope
     pub finename: String,
     pub module_name: String,
@@ -52,11 +52,11 @@ pub struct Definition {
     pub public: bool,
     pub name: String,
     pub hash: (u64, u64, u64, u64),  // 256 bit
-    pub expr: Weak<Expression>,
+    pub expr: Weak<RwLock<Expression>>,
 }
 
 impl Definition {
-    pub fn new(public: bool, name: &str, expr: Weak<Expression>) -> Definition {
+    pub fn new(public: bool, name: &str, expr: Weak<RwLock<Expression>>) -> Definition {
         Definition{
             id: 0,
             public,
@@ -67,7 +67,7 @@ impl Definition {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expression {
     pub body: ExpressionBody,
     pub ty: Type,
@@ -84,30 +84,30 @@ impl Expression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExpressionBody {
     None(),
     Variable(String),
     Identifier(String),
     Str{name: String, text: String},  // "string" ()
     I64(i64),
-    Add(Arc<Expression>, Arc<Expression>),  // +
-    Sub(Arc<Expression>, Arc<Expression>),  // -
-    Mul(Arc<Expression>, Arc<Expression>),  // *
-    Div(Arc<Expression>, Arc<Expression>),  // /
-    Parentheses(Arc<Expression>),  // ()
-    Let(Arc<Expression>, Arc<Expression>),  // let l = r
-    Assign(Arc<Expression>, Arc<Expression>),  // =
+    Add(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // +
+    Sub(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // -
+    Mul(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // *
+    Div(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // /
+    Parentheses(Arc<RwLock<Expression>>),  // ()
+    Let(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // let l = r
+    Assign(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // =
     Function {  // fn f(x: Type) -> Type { ... }
         name: String,
-        args: Vec<Arc<Expression>>,
+        args: Vec<Arc<RwLock<Expression>>>,
         body: Region,
         retern_type: Type,
     },
     BuiltinFunction(BuiltinFunction),  // fn f(x: Type) -> Type { ... }
     FunctionCall {  // fn f(x: Type) -> Type { ... }
         fn_def: Definition,
-        args: Vec<Arc<Expression>>,
+        args: Vec<Arc<RwLock<Expression>>>,
     },
 }
 
@@ -117,7 +117,7 @@ impl ExpressionBody {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Location {
     filename: String,
     line: u64,
@@ -134,7 +134,7 @@ impl Location {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Region {  // for code context
     pub blocks: Vec<Block>,
     pub symbols: HashMap<String,Definition>,
@@ -149,10 +149,10 @@ impl Region {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
-    pub args: Vec<Arc<Expression>>,
-    pub exprs: Vec<Arc<Expression>>,
+    pub args: Vec<Arc<RwLock<Expression>>>,
+    pub exprs: Vec<Arc<RwLock<Expression>>>,
     pub terminator: Option<Terminator>,
     pub location: Location,
 }
@@ -168,14 +168,14 @@ impl Block {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Terminator {
     Return,
     Goto,
     Branch,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BuiltinFunction {
     Printf,
 }

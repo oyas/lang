@@ -2,7 +2,7 @@ use std::io::Write;
 
 use inkwell::context::Context;
 
-use crate::{ast::Ast, backend::{self, mlir::CodeGen}, compiler::hir_to_mlir, hir::converter::convert_from_ast, parser::{self, is_complete}};
+use crate::{ast::Ast, backend::{self, mlir::CodeGen}, compiler::hir_to_mlir, hir::{converter::convert_from_ast, pass, type_inference}, parser::{self, is_complete}};
 
 use super::Options;
 
@@ -53,7 +53,13 @@ pub fn eval<'a>(
     let module_name = format!("__eval_{}", num);
 
     // Convert AST to HIR
-    let hir = convert_from_ast(ast, &module_name);
+    let mut hir = convert_from_ast(ast, &module_name);
+
+    // Type check
+    type_inference::inference_in_hir(&mut hir);
+
+    // Pass HIR
+    pass::pass_in_hir(&mut hir);
     if options.emit_hir {
         println!("HIR: {:?}", hir);
     }

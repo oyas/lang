@@ -10,10 +10,10 @@ pub fn hir_to_mlir(codegen: &mut CodeGen, hir: &Hir) {
     let context = &codegen.context;
     let block = module.body();
     for expr in hir.body.blocks.get(0).unwrap().exprs.iter() {
-        match &expr.body {
-            ExpressionBody::Function{..} => function_to_mlir(&context, &block, expr),
-            ExpressionBody::BuiltinFunction(..) => builtin_function_to_mlir(&context, &block, expr),
-            ExpressionBody::Str{..} => str_to_mlir(&context, &block, expr),
+        match &expr.read().unwrap().body {
+            ExpressionBody::Function{..} => function_to_mlir(&context, &block, &expr.read().unwrap()),
+            ExpressionBody::BuiltinFunction(..) => builtin_function_to_mlir(&context, &block, &expr.read().unwrap()),
+            ExpressionBody::Str{..} => str_to_mlir(&context, &block, &expr.read().unwrap()),
             _ => panic!("Not implemented {:?}", expr),
         };
     }
@@ -31,7 +31,7 @@ fn block_to_mlir<'a>(context: &'a Context, block: &hir::Block) -> Block<'a> {
     let ret = Block::new(&[]);
     let mut last_result = None;
     for expr in &block.exprs {
-        last_result = Some(expr_to_mlir(context, &ret, &expr));
+        last_result = Some(expr_to_mlir(context, &ret, &expr.read().unwrap()));
     }
     match block.terminator {
         Some(hir::Terminator::Return) => {
@@ -44,7 +44,7 @@ fn block_to_mlir<'a>(context: &'a Context, block: &hir::Block) -> Block<'a> {
     ret
 }
 
-fn expr_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>, expr: &Arc<Expression>) -> OperationRef<'a, 'a> {
+fn expr_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>, expr: &Expression) -> OperationRef<'a, 'a> {
     let location = location_to_mlir(context, &expr.location);
     let operation = match &expr.body {
         ExpressionBody::I64(i) => {
@@ -72,8 +72,8 @@ fn expr_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>, expr: &Arc<Expre
             ods::llvm::inttoptr(context, ptr_type, v2.result(0).unwrap().into(), location).as_operation().clone()
         }
         ExpressionBody::Add(a, b) => {
-            let a = expr_to_mlir(context, block, a);
-            let b = expr_to_mlir(context, block, b);
+            let a = expr_to_mlir(context, block, &a.read().unwrap());
+            let b = expr_to_mlir(context, block, &b.read().unwrap());
             arith::addi(
                 a.result(0).unwrap().into(),
                 b.result(0).unwrap().into(),
@@ -82,7 +82,7 @@ fn expr_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>, expr: &Arc<Expre
         },
         ExpressionBody::FunctionCall{fn_def, args} => {
             let name = &fn_def.name;
-            match &fn_def.expr.upgrade().unwrap().body {
+            match &fn_def.expr.upgrade().unwrap().read().unwrap().body {
                 ExpressionBody::BuiltinFunction(f) => {
                     return builtin_function_call_to_mlir(context, block, expr);
                 }
@@ -149,7 +149,8 @@ fn builtin_function_call_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>,
     let ExpressionBody::FunctionCall{fn_def, args} = &expr.body else {
         panic!("Not a FunctionCall. {:?}", expr);
     };
-    let ExpressionBody::BuiltinFunction(function) = &fn_def.expr.upgrade().unwrap().body else {
+    let fn_def_expr = fn_def.expr.upgrade().unwrap();
+    let ExpressionBody::BuiltinFunction(function) = &fn_def_expr.read().unwrap().body else {
         panic!("Not a builtinFunction. {:?}", expr);
     };
     let (fn_ty, ret_ty) = match function {
@@ -169,7 +170,7 @@ fn builtin_function_call_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>,
         .result(ret_ty)
         .callee_operands(&args
             .iter()
-            .map(|expr| expr_to_mlir(context, block, expr).result(0).unwrap().into())
+            .map(|expr| expr_to_mlir(context, block, &expr.read().unwrap()).result(0).unwrap().into())
             .collect::<Vec<_>>()
         )
         .build()

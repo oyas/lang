@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::ast::{self, Ast, Statement};
 
-use super::{BasicType, Block, BuiltinFunction, Definition, Expression, ExpressionBody, Hir, Location, Region, Terminator, Type};
+use super::{Block, BuiltinFunction, Definition, Expression, ExpressionBody, Hir, Region, Terminator, Type};
 
 pub fn convert_from_ast(ast: &Ast, filename: &str) -> Hir {
     let mut hir = Hir::new(filename, filename);
@@ -114,8 +114,8 @@ fn ast_expr_to_hir(expression: &ast::Expression) -> Arc<RwLock<Expression>> {
             Arc::new(RwLock::new(ExpressionBody::Div(a, b).to_expression()))
         },
         ast::Expression::Parentheses(a) => {
-            let a = ast_expr_to_hir(a);
-            Arc::new(RwLock::new(ExpressionBody::Parentheses(a).to_expression()))
+            ast_expr_to_hir(a)
+            // Arc::new(RwLock::new(ExpressionBody::Parentheses(a).to_expression()))
         },
         ast::Expression::Let(a, b) => {
             let a = ast_expr_to_hir(a);

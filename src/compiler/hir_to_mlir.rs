@@ -80,6 +80,33 @@ fn expr_to_mlir<'a>(context: &'a Context, block: &'a Block<'a>, expr: &Expressio
                 location_to_mlir(context, &expr.location),
             )
         },
+        ExpressionBody::Sub(a, b) => {
+            let a = expr_to_mlir(context, block, &a.read().unwrap());
+            let b = expr_to_mlir(context, block, &b.read().unwrap());
+            arith::subi(
+                a.result(0).unwrap().into(),
+                b.result(0).unwrap().into(),
+                location_to_mlir(context, &expr.location),
+            )
+        },
+        ExpressionBody::Mul(a, b) => {
+            let a = expr_to_mlir(context, block, &a.read().unwrap());
+            let b = expr_to_mlir(context, block, &b.read().unwrap());
+            arith::muli(
+                a.result(0).unwrap().into(),
+                b.result(0).unwrap().into(),
+                location_to_mlir(context, &expr.location),
+            )
+        },
+        ExpressionBody::Div(a, b) => {
+            let a = expr_to_mlir(context, block, &a.read().unwrap());
+            let b = expr_to_mlir(context, block, &b.read().unwrap());
+            arith::divsi(
+                a.result(0).unwrap().into(),
+                b.result(0).unwrap().into(),
+                location_to_mlir(context, &expr.location),
+            )
+        },
         ExpressionBody::FunctionCall{fn_def, args} => {
             let name = &fn_def.name;
             match &fn_def.expr.upgrade().unwrap().read().unwrap().body {

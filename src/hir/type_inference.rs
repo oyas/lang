@@ -21,7 +21,11 @@ pub fn inference_in_expr(expr: &Arc<RwLock<Expression>>) -> Type {
     let ty = match &expr.read().unwrap().body {
         ExpressionBody::Str{..} => Type::BasicType(BasicType::Str),
         ExpressionBody::I64{..} => Type::BasicType(BasicType::I64),
-        ExpressionBody::Add(a, b) => {
+        ExpressionBody::Add(a, b)
+        | ExpressionBody::Sub(a, b)
+        | ExpressionBody::Mul(a, b)
+        | ExpressionBody::Div(a, b)
+        => {
             let a_ty = inference_in_expr(a);
             let b_ty = inference_in_expr(b);
             if a_ty != b_ty {
@@ -29,6 +33,7 @@ pub fn inference_in_expr(expr: &Arc<RwLock<Expression>>) -> Type {
             }
             a_ty.clone()
         },
+        // ExpressionBody::Parentheses(a) => inference_in_expr(a),
         ExpressionBody::Function{name, args, body, retern_type} => {
             let args_ty = args.iter().map(|a| inference_in_expr(a)).collect();
             body.blocks.iter().for_each(|b| inference_in_block(b));

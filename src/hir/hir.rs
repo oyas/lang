@@ -95,7 +95,7 @@ pub enum ExpressionBody {
     Sub(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // -
     Mul(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // *
     Div(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // /
-    Parentheses(Arc<RwLock<Expression>>),  // ()
+    // Parentheses(Arc<RwLock<Expression>>),  // ()
     Let(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // let l = r
     Assign(Arc<RwLock<Expression>>, Arc<RwLock<Expression>>),  // =
     Function {  // fn f(x: Type) -> Type { ... }

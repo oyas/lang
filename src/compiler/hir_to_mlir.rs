@@ -1,15 +1,22 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use melior::{dialect::{arith, func, llvm, memref, ods::{self}}, ir::{attribute::{DenseElementsAttribute, FlatSymbolRefAttribute, IntegerAttribute, StringAttribute, TypeAttribute}, r#type::{FunctionType, IntegerType, MemRefType, RankedTensorType}, Attribute, Block, BlockLike, Identifier, Location, OperationRef, Region, Type}, Context};
 
 use crate::{backend::mlir::CodeGen, hir::{self, BuiltinFunction, Expression, ExpressionBody, Hir}};
 
 pub fn hir_to_mlir(codegen: &mut CodeGen, hir: &Hir) {
-    let module_arc = codegen.new_module(&hir.finename);
+    let module_arc = codegen.new_module(&hir.module.read().unwrap().finename);
     let module = module_arc.write().unwrap();
     let context = &codegen.context;
     let block = module.body();
-    for expr in hir.body.blocks.get(0).unwrap().exprs.iter() {
+    let binding = hir.read();
+    let binding = binding.pre_body.read().unwrap();
+    let exprs_pre_body = binding.blocks.get(0).unwrap().exprs.iter();
+    let binding = hir.read();
+    let binding = binding.body.read().unwrap();
+    let exprs_body = binding.blocks.get(0).unwrap().exprs.iter();
+    let exprs = exprs_pre_body.chain(exprs_body);
+    for expr in exprs {
         match &expr.read().unwrap().body {
             ExpressionBody::Function{..} => function_to_mlir(&context, &block, &expr.read().unwrap()),
             ExpressionBody::BuiltinFunction(..) => builtin_function_to_mlir(&context, &block, &expr.read().unwrap()),
@@ -19,9 +26,9 @@ pub fn hir_to_mlir(codegen: &mut CodeGen, hir: &Hir) {
     }
 }
 
-fn region_to_mlir<'a>(context: &'a Context, region: &hir::Region) -> Region<'a> {
+fn region_to_mlir<'a>(context: &'a Context, region: &Arc<RwLock<hir::Region>>) -> Region<'a> {
     let ret = Region::new();
-    for block in &region.blocks {
+    for block in &region.read().unwrap().blocks {
         ret.append_block(block_to_mlir(context, block));
     }
     ret
